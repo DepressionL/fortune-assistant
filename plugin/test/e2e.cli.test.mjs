@@ -137,12 +137,12 @@ test("e2e：非法输入返回可读报错（不崩溃、不静默）", { timeou
   assert.ok(r.output.includes("输入错误"));
 
   // 不存在的公历日期
-  r = await t.fortune_bazi.execute({ year: 1997, month: 2, day: 31, hour: 13 });
+  r = await t.fortune_bazi.execute({ year: 1991, month: 2, day: 31, hour: 8 });
   assert.equal(r.ok, false);
   assert.ok(r.output.includes("输入错误"));
 
   // dst 误用（1997 年无中国夏令时）→ 应报可读输入错误而非裸 traceback
-  r = await t.fortune_bazi.execute({ year: 1997, month: 2, day: 24, hour: 13, dst: true });
+  r = await t.fortune_bazi.execute({ year: 1991, month: 1, day: 11, hour: 0, dst: true });
   assert.equal(r.ok, false);
   assert.ok(r.output.includes("输入错误"), `dst 误用应报输入错误：${r.output}`);
   assert.ok(r.output.includes("夏令时"));
