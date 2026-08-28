@@ -101,6 +101,38 @@ _TIANXI = {k: ZHI_CHARS[(ZHI_CHARS.index(v) + 6) % 12] for k, v in _HONGLUAN.ite
 _WANGSHEN = {"申": "亥", "子": "亥", "辰": "亥", "寅": "巳", "午": "巳", "戌": "巳",
              "巳": "申", "酉": "申", "丑": "申", "亥": "寅", "卯": "寅", "未": "寅"}
 
+# 暗金的煞（一名吟呻/破碎/白衣：《三命通会》卷三论暗金的煞
+# 「子午卯酉在巳，寅申巳亥在酉，辰戌丑未在丑」——四仲→巳、四孟→酉、四季→丑）
+_ANJIN = {"子": "巳", "午": "巳", "卯": "巳", "酉": "巳",
+          "寅": "酉", "申": "酉", "巳": "酉", "亥": "酉",
+          "辰": "丑", "戌": "丑", "丑": "丑", "未": "丑"}
+
+# 六厄（三合局五行之死位，《三命通会》卷三论六厄
+# 「常居马前一辰，劫后二辰」：申子辰→卯、寅午戌→酉、亥卯未→午、巳酉丑→子）
+_LIU_E = {"申": "卯", "子": "卯", "辰": "卯", "寅": "酉", "午": "酉", "戌": "酉",
+          "亥": "午", "卯": "午", "未": "午", "巳": "子", "酉": "子", "丑": "子"}
+
+# 德秀（《三命通会》卷三论德秀：按月令三合局定德干/秀干）
+_SANHE_JU = {"寅": "寅午戌", "午": "寅午戌", "戌": "寅午戌",
+             "申": "申子辰", "子": "申子辰", "辰": "申子辰",
+             "巳": "巳酉丑", "酉": "巳酉丑", "丑": "巳酉丑",
+             "亥": "亥卯未", "卯": "亥卯未", "未": "亥卯未"}
+DE_XIU = {
+    "寅午戌": {"德": "丙丁", "秀": "戊癸"},
+    "申子辰": {"德": "壬癸戊己", "秀": "丙辛甲己"},
+    "巳酉丑": {"德": "庚辛", "秀": "乙庚"},
+    "亥卯未": {"德": "甲乙", "秀": "丁壬"},
+}
+
+_CHONG = {"子": "午", "午": "子", "丑": "未", "未": "丑", "寅": "申", "申": "寅",
+          "卯": "酉", "酉": "卯", "辰": "戌", "戌": "辰", "巳": "亥", "亥": "巳"}
+_YANG_GAN = "甲丙戊庚壬"
+
+
+def _yang_ming(nian_gan: str, gender: str) -> bool:
+    """阳男/阴女 → True（元辰、勾绞的顺逆分派）。"""
+    return (nian_gan in _YANG_GAN) == (gender == "男")
+
 # ---------- 月令查 ----------
 # 天德（《三命通会》卷三：正丁二坤三壬四辛五乾六甲七癸八艮九丙十乙十一巽十二庚；
 # 值可为干或支）
@@ -195,8 +227,41 @@ def compute(chart: BaziChart, base: str = "day") -> list[ShenShaHit]:
     zhi_hit("灾煞", _ZAISHA, key_zhi, basis_label_zhi)
     zhi_hit("亡神", _WANGSHEN, key_zhi, basis_label_zhi,
             note="三合局泄位；《三命通会》卷三论劫煞亡神「申子辰以亥为亡神」等")
+    zhi_hit("暗金的煞", _ANJIN, key_zhi, basis_label_zhi,
+            note="一名吟呻/破碎/白衣；《三命通会》卷三论暗金的煞「子午卯酉在巳，寅申巳亥在酉，辰戌丑未在丑」")
+    zhi_hit("六厄", _LIU_E, key_zhi, basis_label_zhi,
+            note="三合局五行死位；《三命通会》卷三论六厄「常居马前一辰，劫后二辰……申子辰水局，水死在卯」等")
     zhi_hit("孤辰", _GUCHEN, key_zhi, basis_label_zhi)
     zhi_hit("寡宿", _GUASU, key_zhi, basis_label_zhi)
+
+    # 元辰（以年支查、按年干阴阳与性别分派；《三命通会》卷三论元辰
+    # 「阳男阴女，在冲前一位支辰；阴男阳女，在冲后一位支辰」）
+    chong = _CHONG[zhis[0]]
+    if _yang_ming(gans[0], chart.gender):
+        yc = ZHI_CHARS[(ZHI_CHARS.index(chong) + 1) % 12]
+        yc_dir = "冲前一位"
+    else:
+        yc = ZHI_CHARS[(ZHI_CHARS.index(chong) - 1) % 12]
+        yc_dir = "冲后一位"
+    yc_pos = [PILLAR_NAMES[i] for i, z in enumerate(zhis) if z == yc]
+    if yc_pos:
+        hits.append(ShenShaHit("元辰", f"年支{zhis[0]}（{gans[0]}{'阳' if gans[0] in _YANG_GAN else '阴'}干{chart.gender}）",
+                               yc_pos, [yc] * len(yc_pos),
+                               note=f"{yc_dir}；《三命通会》卷三论元辰（以年支查；另有日支说未采）"))
+
+    # 勾绞（以年支查、按年干阴阳与性别分派；《三命通会》卷三论勾绞
+    # 「阳男阴女，命前三辰为勾；命后三辰为绞；阴男阳女，命前三辰为绞，命后三辰为勾」）
+    yi = ZHI_CHARS.index(zhis[0])
+    if _yang_ming(gans[0], chart.gender):
+        gou, jiao = ZHI_CHARS[(yi + 3) % 12], ZHI_CHARS[(yi - 3) % 12]
+    else:
+        gou, jiao = ZHI_CHARS[(yi - 3) % 12], ZHI_CHARS[(yi + 3) % 12]
+    for nm, tgt in (("勾煞", gou), ("绞煞", jiao)):
+        pos = [PILLAR_NAMES[i] for i, z in enumerate(zhis) if z == tgt]
+        if pos:
+            hits.append(ShenShaHit(nm, f"年支{zhis[0]}（{gans[0]}{'阳' if gans[0] in _YANG_GAN else '阴'}干{chart.gender}）",
+                                   pos, [tgt] * len(pos),
+                                   note="命前/后三辰按阴阳男女分派；《三命通会》卷三论勾绞（以年支查）"))
     # 红鸾/天喜：主流以年支查（择日体系），不受 shensha_base 影响
     yb = zhis[0]
     for name, tab in (("红鸾", _HONGLUAN), ("天喜", _TIANXI)):
@@ -239,6 +304,18 @@ def compute(chart: BaziChart, base: str = "day") -> list[ShenShaHit]:
     if pos:
         hits.append(ShenShaHit("月德贵人", f"月令{mz}", pos, [yd] * len(pos),
                                note="月德取丙壬甲庚（《三命通会》小结「癸」为讹）"))
+
+    # 德秀（按月令三合局定德干/秀干；《三命通会》卷三论德秀）
+    ju = _SANHE_JU.get(mz, "")
+    if ju:
+        d = DE_XIU[ju]
+        for kind, ganset in (("德", d["德"]), ("秀", d["秀"])):
+            pos = [PILLAR_NAMES[i] for i, g in enumerate(gans) if g in ganset]
+            if pos:
+                hits.append(ShenShaHit(
+                    f"德秀（{kind}）", f"月令{mz}（{ju}月）", pos,
+                    ["".join(g for g in gans if g in ganset)] * len(pos),
+                    note=f"《三命通会》卷三论德秀「{ju}月，{d['德']}为德，{d['秀']}为秀」"))
 
     # 旬空（日柱旬）
     dk = chart.pillar("日柱").xun_kong
