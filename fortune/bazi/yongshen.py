@@ -81,37 +81,46 @@ def wangshuai(chart: BaziChart, st: StrengthResult) -> YongshenResult:
     return y
 
 
-def tiaohou(chart: BaziChart) -> YongshenResult:
-    """调候（简化自《穷通宝鉴》纲领）：以月令寒暖燥湿定调候用神。"""
-    mz = chart.pillar("月柱").zhi
-    y = YongshenResult(school="tiaohou（调候，简化《穷通宝鉴》）")
+_MONTH_CN = {1: "正月", 2: "二月", 3: "三月", 4: "四月", 5: "五月", 6: "六月",
+             7: "七月", 8: "八月", 9: "九月", 10: "十月", 11: "十一月", 12: "十二月"}
+
+
+def _tiaohou_wuxing(mz: str) -> tuple[list[str], list[str]]:
+    """原简化规则：由月令寒暖燥湿给五行级调候提示（保留兼容）。"""
     cold, hot = ("亥", "子", "丑"), ("巳", "午", "未")
     dry, wet = ("戌", "未"), ("辰", "丑")
     if mz in cold:
-        y.yong_wuxing = ["火"]
-        y.conclusions = [
-            f"月令{mz}冬寒，调候用神取火（丙丁/巳午），暖局为急",
-            "天干透丙丁、地支见巳午则调候有力",
-        ]
-    elif mz in hot:
-        y.yong_wuxing = ["水"]
-        y.conclusions = [
-            f"月令{mz}夏燥，调候用神取水（壬癸/亥子），润局为急",
-            "天干透壬癸、地支见亥子则调候有力",
-        ]
-    elif mz in dry:
-        y.yong_wuxing = ["水"]
-        y.conclusions = [f"月令{mz}燥土当令，调候喜水（壬癸/亥子）润燥"]
-    elif mz in wet:
-        y.yong_wuxing = ["火"]
-        y.conclusions = [f"月令{mz}湿土当令，调候喜火（丙丁/巳午）暖湿"]
-    else:  # 寅卯辰巳? 寅卯(春)、申酉(秋)
-        if mz in ("寅", "卯"):
-            y.yong_wuxing = ["火"]
-            y.conclusions = [f"月令{mz}春木当令，木旺火相，调候喜火泄秀（简化规则）"]
-        else:
-            y.yong_wuxing = ["水"]
-            y.conclusions = [f"月令{mz}秋金当令，调候喜水流通（简化规则）"]
+        return ["火"], [f"月令{mz}冬寒，调候用神取火（丙丁/巳午），暖局为急",
+                        "天干透丙丁、地支见巳午则调候有力"]
+    if mz in hot:
+        return ["水"], [f"月令{mz}夏燥，调候用神取水（壬癸/亥子），润局为急",
+                        "天干透壬癸、地支见亥子则调候有力"]
+    if mz in dry:
+        return ["水"], [f"月令{mz}燥土当令，调候喜水（壬癸/亥子）润燥"]
+    if mz in wet:
+        return ["火"], [f"月令{mz}湿土当令，调候喜火（丙丁/巳午）暖湿"]
+    if mz in ("寅", "卯"):
+        return ["火"], [f"月令{mz}春木当令，木旺火相，调候喜火泄秀（简化规则）"]
+    return ["水"], [f"月令{mz}秋金当令，调候喜水流通（简化规则）"]
+
+
+def tiaohou(chart: BaziChart) -> YongshenResult:
+    """调候（《穷通宝鉴》逐月原文）：按（日主, 月令）查逐字表，附五行提示。"""
+    from .tiaohou_text import TIAOHOU_TEXT
+
+    mz = chart.pillar("月柱").zhi
+    day = chart.day_master
+    mo = "寅卯辰巳午未申酉戌亥子丑".index(mz) + 1
+    text = TIAOHOU_TEXT.get(day, {}).get(mo, "")
+    y = YongshenResult(school="tiaohou（调候，《穷通宝鉴》逐月原文）")
+    y.yong_wuxing, wx_conclusions = _tiaohou_wuxing(mz)
+    lines = [
+        f"{_MONTH_CN[mo]}{day}日主（《穷通宝鉴》原文）："
+        f"{text[:120]}{'…' if len(text) > 120 else ''}",
+        "出处：《穷通宝鉴》维基文库本（research/fetched/qiongbao.txt，程序化提取、繁转简）",
+    ]
+    lines += [f"调候五行提示（简化规则）：{c}" for c in wx_conclusions]
+    y.conclusions = lines
     return y
 
 

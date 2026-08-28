@@ -180,7 +180,7 @@ export function apply(ctx, config = {}) {
       + "（换日时刻/神煞基准/用神流派）。输出 Markdown 报告。",
     parameters: toParametersSchema({
       ...BIRTH_SPEC,
-      school: ENUM("用神流派：wangshuai(旺衰,默认)|tiaohou(调候)|tongguan(通关)|geju(格局)",
+      school: ENUM("用神流派：wangshuai(旺衰,默认)|tiaohou(调候,《穷通宝鉴》逐月原文)|tongguan(通关)|geju(格局)",
                    ["wangshuai", "tiaohou", "tongguan", "geju"]),
       schools: STRING("逗号分隔的多流派一次对比（覆盖 school），如 \"wangshuai,tiaohou\""),
       shenshaBase: ENUM("神煞索引基准：day(日干/日支,子平主流,默认)|year(年干/年支,古法)",

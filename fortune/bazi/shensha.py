@@ -55,6 +55,25 @@ YANGREN = {"甲": "卯", "丙": "午", "戊": "午", "庚": "酉", "壬": "子"}
 #: 少数派阴刃（帝旺位），默认不用
 YANGREN_YIN = {"乙": "寅", "丁": "巳", "己": "巳", "辛": "申", "癸": "亥"}
 
+# 金舆（禄前二辰，《三命通会》卷三论金舆「金舆常居禄前二辰」）
+JINYU = {"甲": "辰", "乙": "巳", "丙": "未", "丁": "申", "戊": "未",
+         "己": "申", "庚": "戌", "辛": "亥", "壬": "丑", "癸": "寅"}
+
+# 学堂/词馆（日干长生位=学堂、临官位=词馆；《三命通会》卷三论学堂词馆
+# 原文以纳音长生/临官立论，通行另有日干派，此处采用日干派并标注）
+XUETANG = {"甲": "亥", "乙": "午", "丙": "寅", "丁": "酉", "戊": "寅",
+           "己": "酉", "庚": "巳", "辛": "子", "壬": "申", "癸": "卯"}
+CIGUAN = {"甲": "寅", "乙": "卯", "丙": "巳", "丁": "午", "戊": "巳",
+          "己": "午", "庚": "申", "辛": "酉", "壬": "亥", "癸": "子"}
+
+# 三奇（《三命通会》卷三论三奇；顺布）
+SANQI = (("天上三奇", "甲戊庚"), ("地下三奇", "乙丙丁"), ("人中三奇", "壬癸辛"))
+
+# 十恶大败（十干禄入空亡之十日，《三命通会》卷三论十恶大败；
+# 维基文库本「乙丑」为传本异文，按定义应为「己丑」，从通行）
+SHI_E = {"甲辰", "乙巳", "丙申", "丁亥", "戊戌", "己丑",
+         "庚辰", "辛巳", "壬申", "癸亥"}
+
 # ---------- 支查神煞（以 config.shensha_base 选日支或年支） ----------
 _YIMA = {"申": "寅", "子": "寅", "辰": "寅", "寅": "申", "午": "申", "戌": "申",
          "巳": "亥", "酉": "亥", "丑": "亥", "亥": "巳", "卯": "巳", "未": "巳"}
@@ -76,6 +95,11 @@ _HONGLUAN = {"子": "卯", "丑": "寅", "寅": "丑", "卯": "子", "辰": "亥
              "午": "酉", "未": "申", "申": "未", "酉": "午", "戌": "巳", "亥": "辰"}
 #: 天喜 = 红鸾对冲
 _TIANXI = {k: ZHI_CHARS[(ZHI_CHARS.index(v) + 6) % 12] for k, v in _HONGLUAN.items()}
+
+# 亡神（三合局泄位，《三命通会》卷三论劫煞亡神：申子辰→亥、寅午戌→巳、
+# 巳酉丑→申、亥卯未→寅）
+_WANGSHEN = {"申": "亥", "子": "亥", "辰": "亥", "寅": "巳", "午": "巳", "戌": "巳",
+             "巳": "申", "酉": "申", "丑": "申", "亥": "寅", "卯": "寅", "未": "寅"}
 
 # ---------- 月令查 ----------
 # 天德（《三命通会》卷三：正丁二坤三壬四辛五乾六甲七癸八艮九丙十乙十一巽十二庚；
@@ -139,6 +163,22 @@ def compute(chart: BaziChart, base: str = "day") -> list[ShenShaHit]:
     gan_hit("文昌贵人", WENCHANG, key_gan,
             note="主流口诀「甲乙巳午报君知」；《三命通会》卷三另有异表")
     gan_hit("禄神", LU, key_gan)
+    gan_hit("金舆", JINYU, key_gan,
+            note="禄前二辰；《三命通会》卷三论金舆「金舆常居禄前二辰，如甲子人禄在寅，辰为金舆是也」")
+    gan_hit("学堂", XUETANG, key_gan,
+            note="日干长生位；《三命通会》卷三论学堂词馆「长生乃学堂之正位」（原文兼举纳音派，此处采日干派）")
+    gan_hit("词馆", CIGUAN, key_gan,
+            note="日干临官位；《三命通会》卷三论学堂词馆「临官乃词馆正位」（口径争议同学堂）")
+    # 三奇（顺布）：三干同见于四柱且按年→时柱序顺布（倒乱不判）
+    seq = "".join(gans)
+    for sname, trio in SANQI:
+        idx = [seq.find(c) for c in trio]
+        if all(i >= 0 for i in idx) and idx == sorted(idx) and len(set(idx)) == len(trio):
+            hits.append(ShenShaHit(
+                f"三奇（{sname}）", f"四柱天干{''.join(gans)}", ["四柱"], [trio],
+                note=f"{trio} 顺布；《三命通会》卷三论三奇（通行分类：天上甲戊庚/地下乙丙丁/"
+                     "人中壬癸辛；三命通会引《珞琭子》以乙丙丁为天上三奇、甲戊庚亦以为天上三奇，"
+                     "两说并列）"))
     if key_gan in YANGREN:
         gan_hit("羊刃", YANGREN, key_gan, note="阳干禄前一位；主流阴干无刃")
     else:
@@ -146,12 +186,15 @@ def compute(chart: BaziChart, base: str = "day") -> list[ShenShaHit]:
                                note="主流：阴干无刃（《三命通会》论羊刃），仅见伤官论"))
 
     # 支查
-    zhi_hit("驿马", _YIMA, key_zhi, basis_label_zhi)
+    zhi_hit("驿马", _YIMA, key_zhi, basis_label_zhi,
+            note="三合局起马；《三命通会》卷三论驿马「驿马者，三命中发用，喜庆之神」")
     zhi_hit("桃花(咸池)", _TAOHUA, key_zhi, basis_label_zhi)
     zhi_hit("华盖", _HUAGAI, key_zhi, basis_label_zhi)
     zhi_hit("将星", _JIANGXING, key_zhi, basis_label_zhi)
     zhi_hit("劫煞", _JIESHA, key_zhi, basis_label_zhi)
     zhi_hit("灾煞", _ZAISHA, key_zhi, basis_label_zhi)
+    zhi_hit("亡神", _WANGSHEN, key_zhi, basis_label_zhi,
+            note="三合局泄位；《三命通会》卷三论劫煞亡神「申子辰以亥为亡神」等")
     zhi_hit("孤辰", _GUCHEN, key_zhi, basis_label_zhi)
     zhi_hit("寡宿", _GUASU, key_zhi, basis_label_zhi)
     # 红鸾/天喜：主流以年支查（择日体系），不受 shensha_base 影响
@@ -162,6 +205,25 @@ def compute(chart: BaziChart, base: str = "day") -> list[ShenShaHit]:
         if pos:
             hits.append(ShenShaHit(name, f"年支{yb}", pos, [target] * len(pos),
                                    note="以年支查（择日通行；古籍正文出处待考，见研究文档 §15）"))
+
+    # 天罗地网（《三命通会》卷三论天罗地网：戌亥=天罗、辰巳=地网；男怕天罗、女怕地网）
+    tl = [PILLAR_NAMES[i] for i, z in enumerate(zhis) if z in ("戌", "亥")]
+    dw = [PILLAR_NAMES[i] for i, z in enumerate(zhis) if z in ("辰", "巳")]
+    if tl:
+        hits.append(ShenShaHit("天罗", "四柱", tl, ["戌/亥"] * len(tl),
+                               note=f"戌亥为天罗，{'男命忌' if chart.gender == '男' else '女命不妨'}；"
+                                    "《三命通会》「天倾西北，戌亥者，六阴之终也」（纳音派火命天罗之说未采）"))
+    if dw:
+        hits.append(ShenShaHit("地网", "四柱", dw, ["辰/巳"] * len(dw),
+                               note=f"辰巳为地网，{'女命忌' if chart.gender == '女' else '男命不妨'}；"
+                                    "《三命通会》「地陷东南，辰巳者，六阳之终也」（纳音派水土命地网之说未采）"))
+
+    # 十恶大败（十干禄入空亡之十日，仅看日柱）
+    dgz = chart.pillar("日柱").gan_zhi
+    if dgz in SHI_E:
+        hits.append(ShenShaHit("十恶大败", f"日柱{dgz}", ["日柱"], [dgz],
+                               note="十干禄入空亡；《三命通会》卷三论十恶大败。"
+                                    "维基文库本作「乙丑」，按定义应为「己丑」，从通行"))
 
     # 月令查：天德（值可为干或支）、月德（干）
     mz = chart.pillar("月柱").zhi
