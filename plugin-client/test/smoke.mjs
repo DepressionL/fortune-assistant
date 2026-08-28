@@ -159,9 +159,17 @@ for (const [name, data] of Object.entries(FIXTURES)) {
 const zw = viewOf("fortune_ziwei")({ block: { kind: "tool-result",
   meta: { ok: true, tool: "fortune_ziwei", data: FIXTURES.fortune_ziwei }, content: [] } });
 let palCount = 0;
-walk(zw, (el) => { if (el.type === "g" && String(el.props.className ?? "").includes("ft-pal")) palCount++; });
+walk(zw, (el) => {
+  if (el.type === "button" && String(el.props.className ?? "").includes("ft-zw-cell")) palCount++;
+});
 assert.equal(palCount, 12, "紫微盘应有 12 个可点宫位");
-assert.ok(palCount === 12 && true);
+// 每宫有 grid 定位（传统 4×4 布局）
+let gridCount = 0;
+walk(zw, (el) => {
+  if (el.type === "div" && String(el.props.className ?? "").includes("ft-zw-grid")) gridCount++;
+});
+assert.equal(gridCount, 1, "应有宫格容器");
+assert.ok(palCount === 12 && gridCount === 1);
 
 // meta 缺失时回退不抛错
 for (const [name] of Object.entries(FIXTURES)) {
