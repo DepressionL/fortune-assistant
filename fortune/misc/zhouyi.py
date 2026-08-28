@@ -3,18 +3,32 @@
 文字出处：通行本《周易》（阮刻《十三经注疏》本文字，通行简体排印本），
 公共领域文献，逐卦核录。
 
-核验记录：本表已与另一份独立默写结果做程序化逐字比对
-（tests/fixtures/zhouyi_subagent_recitation.json + tests/diff_zhouyi.py，
-比对时去除句读与爻题），64 卦辞 + 384 爻辞仅 4 处差异且全部为已知经典异文
-（见下方 YIWEN 表，本表从阮刻注疏本）。该比对为「独立记忆互证」，
-网络不可用时无法在线抓取权威数字版全文比对，此点如实说明。
+核验记录（两层）：
+1. 权威数字版程序化比对：与 zh.wikisource.org《周易》64 卦子页（通行本经文，
+   Textquality 50%，Public Domain，2026-08-29 抓取，存档 research/fetched/
+   zhouyi_pages/）逐字比对（去句读/爻题/卦名引导，繁转简），64 卦辞 + 384 爻辞
+   + 用九用六**全部一致**，差异仅 6 处且均为已知经典异文（见 YIWEN 表），其中
+   「复初九」维基文库本误作「不复远」（诸本皆作「不远复」，文库转录疑误）。
+   比对脚本 tests/verify_zhouyi_wikisource.py，回归测试
+   tests/test_zhouyi_wikisource.py（缺数据源时自动跳过）。
+2. 独立默写互证：与另一份独立默写结果逐字比对（tests/fixtures/
+   zhouyi_subagent_recitation.json + tests/test_zhouyi.py 回归测试），结果一致。
 
 异文表（YIWEN）：{位置: (本表用字, 别本用字, 说明)}
-- 同人九五/旅上九「号咷」：阮刻注疏本作「咷」；现代简体排印本多作「啕」。
+- 同人九五/旅上九「号咷」：阮刻注疏本作「咷」；现代简体排印本、维基文库本多作「啕」。
 - 革卦辞/六二「己日乃孚」：阮刻注疏本、朱熹《周易本义》作「己」；
-  现代简体排印本（如中华书局本）多作「巳」。
+  现代简体排印本（中华书局等）、维基文库本作「巳」。
 - 小畜九三「舆说辐」：阮刻注疏本作「辐」；或作「輹」（大畜九二「说輹」同字）。
-- 既济六四「繻有衣袽」：「繻」或作「襦」。
+- 既济六四「繻有衣袽」：「繻」或作「襦」；维基文库本用扩展区码位𦈡（同字）。
+- 中孚初九「有它不燕」：注疏本作「它」；维基文库本作「他」。
+- 大有上六「自天祐之」：注疏本作「祐」；维基文库本作「佑」。
+- 困九二「利用享祀」：注疏本作「享」；维基文库本作「亨」。
+- 姤初六「羸豕孚蹢躅」：注疏本作「蹢」；维基文库本作「踟躅」。
+- 复初九「无祗悔」：注疏本作「祗」；维基文库本作「袛」。
+- 噬嗑九四/六五「噬干胏/噬干肉」：注疏本作「乾」（干肉义）；简体排印本作「干」，
+  本表从简体。
+- 遁卦（遯）：繁体作「遯」，简体作「遁」，同字。
+- 坎卦爻辞「徽纆」「撝谦」「覆公餗」：维基文库本用 CJK 扩展区码位（𬙊/㧑/𫗧），同字。
 
 卦名释义为通行传注（《彖传》《序卦传》义）概括，标注「参考」；
 断辞类解读均非本模块职责（见 liuyao/duanyu.py）。
@@ -25,11 +39,25 @@
 
 from __future__ import annotations
 
+from .zhouyi_zhuan import TUAN as _TUAN, XIANG as _XIANG
+
 #: 复合卦名 → 卦名本体（由 meihua.GUA64 规则推导，tests/test_zhouyi.py 全量校验）
 def body(full_name: str) -> str:
     if "为" in full_name:
         return full_name.split("为")[0]
     return full_name[2:]
+
+
+def tuan(full_name: str) -> str | None:
+    """复合卦名 → 彖传原文（通行本《周易》，维基文库本程序化提取）。"""
+    b = body(full_name)
+    return _TUAN.get(b)
+
+
+def daxiang(full_name: str) -> str | None:
+    """复合卦名 → 大象传原文（「君子以…」句）。"""
+    b = body(full_name)
+    return _XIANG.get(b)
 
 
 #: 每卦：(卦辞, [初爻…上爻六条爻辞], 卦名释义（参考）)
@@ -320,7 +348,7 @@ YONG_YAO = {"乾": "见群龙无首，吉。", "坤": "利永贞。"}
 
 
 def gua_ci(full_name: str) -> str | None:
-    """复合卦名（如「火山旅」）→ 卦辞；未知返回 None。"""
+    """复合卦名（如「水雷屯」）→ 卦辞；未知返回 None。"""
     b = body(full_name)
     return ZHOUYI[b][0] if b in ZHOUYI else None
 

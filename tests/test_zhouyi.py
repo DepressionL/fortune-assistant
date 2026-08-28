@@ -29,17 +29,17 @@ def test_body_covers_liuyao_names():
 def test_yong_yao():
     assert zhouyi.yong_yao("乾为天") == "见群龙无首，吉。"
     assert zhouyi.yong_yao("坤为地") == "利永贞。"
-    assert zhouyi.yong_yao("火山旅") is None
+    assert zhouyi.yong_yao("水雷屯") is None
 
 
 def test_spot_checks():
-    assert zhouyi.gua_ci("火山旅") == "旅，小亨。旅贞吉。"
-    assert zhouyi.yao_ci("火山旅", 6) == "鸟焚其巢，旅人先笑后号咷。丧牛于易，凶。"
-    assert zhouyi.gua_ci("天水讼") == "讼，有孚窒惕，中吉，终凶。利见大人，不利涉大川。"
+    assert zhouyi.gua_ci("水雷屯") == "屯，元亨，利贞。勿用有攸往，利建侯。"
+    assert zhouyi.yao_ci("水雷屯", 2) == "屯如邅如，乘马班如。匪寇婚媾，女子贞不字，十年乃字。"
+    assert zhouyi.gua_ci("山水蒙") == "蒙，亨。匪我求童蒙，童蒙求我。初筮告，再三渎，渎则不告。利贞。"
     assert zhouyi.yao_ci("乾为天", 1) == "潜龙勿用。"
     assert zhouyi.yao_ci("坤为地", 6) == "龙战于野，其血玄黄。"
-    assert zhouyi.yao_ci("火山旅", 0) is None
-    assert zhouyi.yao_ci("火山旅", 7) is None
+    assert zhouyi.yao_ci("水雷屯", 0) is None
+    assert zhouyi.yao_ci("水雷屯", 7) is None
     assert zhouyi.gua_ci("不存在的卦") is None
 
 

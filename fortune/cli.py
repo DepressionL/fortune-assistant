@@ -288,19 +288,22 @@ def meihua(
 
 
 def _zhouyi_ref(res) -> dict:
-    """梅花结果 → 卦爻辞引用（通行本《周易》）。"""
+    """梅花结果 → 卦爻辞/彖传/大象传引用（通行本《周易》）。"""
     return {
         "ben_gua_ci": zhouyi_mod.gua_ci(res.ben_gua),
         "dong_yao_ci": zhouyi_mod.yao_ci(res.ben_gua, res.moving_line),
         "bian_gua_ci": zhouyi_mod.gua_ci(res.bian_gua),
+        "ben_tuan": zhouyi_mod.tuan(res.ben_gua),
+        "ben_daxiang": zhouyi_mod.daxiang(res.ben_gua),
         "ben_mean": zhouyi_mod.meaning(res.ben_gua),
         "bian_mean": zhouyi_mod.meaning(res.bian_gua),
-        "source": "通行本《周易》（阮刻《十三经注疏》本文字）；卦义为通行传注概括",
+        "source": "通行本《周易》（阮刻《十三经注疏》本文字；彖传/大象传为"
+                  "维基文库本程序化提取原文）；卦义为通行传注概括",
     }
 
 
 def _echo_zhouyi(res) -> None:
-    """输出卦辞/爻辞文本参照（与体用断法并列，两法互参）。"""
+    """输出卦辞/爻辞/彖传/大象传文本参照（与体用断法并列，两法互参）。"""
     ref = _zhouyi_ref(res)
     typer.echo("")
     typer.echo("【卦爻辞（通行本《周易》，阮刻《十三经注疏》本文字）】")
@@ -308,13 +311,17 @@ def _echo_zhouyi(res) -> None:
         typer.echo(f"本卦「{res.ben_gua}」卦辞：{ref['ben_gua_ci']}")
         if ref["ben_mean"]:
             typer.echo(f"  卦义（通行传注概括，参考）：{ref['ben_mean']}")
+    if ref["ben_tuan"]:
+        typer.echo(f"本卦「{res.ben_gua}」彖传（原文）：{ref['ben_tuan']}")
+    if ref["ben_daxiang"]:
+        typer.echo(f"本卦「{res.ben_gua}」大象传（原文）：{ref['ben_daxiang']}")
     if ref["dong_yao_ci"]:
         typer.echo(f"动爻（第{res.moving_line}爻）爻辞：{ref['dong_yao_ci']}")
     if res.bian_gua != res.ben_gua and ref["bian_gua_ci"]:
         typer.echo(f"变卦「{res.bian_gua}」卦辞：{ref['bian_gua_ci']}")
         if ref["bian_mean"]:
             typer.echo(f"  卦义（通行传注概括，参考）：{ref['bian_mean']}")
-    typer.echo("注：卦爻辞仅作文本参照；吉凶以体用生克断法为主（见上），两法可互参。")
+    typer.echo("注：卦爻辞、彖传、大象传均为原文引文；吉凶以体用生克断法为主（见上），两法可互参。")
 
 
 @app.command()

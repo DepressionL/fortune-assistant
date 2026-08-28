@@ -4,31 +4,31 @@ from fortune.liuyao.duanyu import duanyu
 
 
 def test_bian_najia_uses_bian_gua_branches():
-    """火山旅（下艮上离）三爻动 → 天水讼（下坎上乾）：
-    变爻地支按变卦纳甲取支（初爻辰→寅、二爻午→辰、三爻申→午），
-    六亲仍按本宫（离火）论。此为本轮修复的口径（《增删卜易》装卦法）。"""
-    c = from_coins([2, 0, 3, 1, 0, 1], "申", "乙亥")  # 初少阴 二老阴 三老阳 四少阳 五老阴 上少阳
-    assert c.ben_gua == "火山旅" and c.bian_gua == "天水讼"
+    """乾为天（下乾上乾）二三五爻动 → 火雷噬嗑（下震上离）：
+    变爻地支按变卦纳甲取支（二爻寅→寅、三爻辰→辰、五爻申→未），
+    六亲仍按本宫（乾金）论。此为本轮修复的口径（《增删卜易》装卦法）。"""
+    c = from_coins([1, 3, 3, 1, 3, 1], "午", "甲午")  # 初少阳 二老阳 三老阳 四少阳 五老阳 上少阳
+    assert c.ben_gua == "乾为天" and c.bian_gua == "火雷噬嗑"
     moving = [ln for ln in c.lines if ln.is_moving]
     assert [ln.no for ln in moving] == [2, 3, 5]
-    # 变爻纳甲：二爻 丙午→戊辰；三爻 丙申→戊午；五爻 己未→壬申
+    # 变爻纳甲：二爻 甲寅→庚寅；三爻 甲辰→庚辰；五爻 壬申→己未
     by_no = {ln.no: ln for ln in c.lines}
-    assert by_no[2].bian_gan_zhi == "戊辰" and by_no[2].bian_liu_qin == "子孙"
-    assert by_no[3].bian_gan_zhi == "戊午" and by_no[3].bian_liu_qin == "兄弟"
-    assert by_no[5].bian_gan_zhi == "壬申" and by_no[5].bian_liu_qin == "妻财"
+    assert by_no[2].bian_gan_zhi == "庚寅" and by_no[2].bian_liu_qin == "妻财"
+    assert by_no[3].bian_gan_zhi == "庚辰" and by_no[3].bian_liu_qin == "父母"
+    assert by_no[5].bian_gan_zhi == "己未" and by_no[5].bian_liu_qin == "父母"
     # 非动爻变支仍按变卦纳甲记录（仅不展示）
-    assert by_no[1].bian_gan_zhi == "戊寅"
+    assert by_no[1].bian_gan_zhi == "庚子"
 
 
 def test_duanyu_smoke():
-    c = from_coins([2, 0, 3, 1, 0, 1], "申", "乙亥")
+    c = from_coins([1, 3, 3, 1, 3, 1], "午", "甲午")
     text = duanyu(c)
     assert "断语（规则化生成" in text
     assert "世爻" in text and "应爻" in text
-    assert "回头克" in text            # 三爻申金动化午火回头克
-    assert "旬空" in text              # 应爻酉金逢空（乙亥日旬空申酉）
+    assert "应爻逢旬空" in text        # 应爻甲辰逢空（甲午日旬空辰巳）
+    assert "回头生" in text            # 五爻壬申金动化己未土回头生
     assert "月建" in text and "日辰" in text
-    assert "旅为行旅" in text          # 卦名释义引用
+    assert "乾为健" in text            # 卦名释义引用
 
 
 def test_duanyu_static_gua():
@@ -36,3 +36,21 @@ def test_duanyu_static_gua():
     c = from_coins([1, 1, 1, 1, 1, 1], "午", "甲子")  # 全少阳 → 乾为天，无动
     text = duanyu(c)
     assert "六爻安静" in text
+
+
+def test_shichi_quotes_verbatim_in_source():
+    """六亲持世的原文短引必须逐字存在于《增删卜易》原文存档中（防引文漂移）。"""
+    import pathlib
+    import re
+
+    import pytest
+
+    from fortune.liuyao.duanyu import SHI_CHI
+
+    src = pathlib.Path(__file__).resolve().parents[1] / "research" / "fetched" / "zengshan_toc.txt"
+    if not src.exists():
+        pytest.skip("《增删卜易》原文存档缺失，跳过")
+    text = src.read_text(encoding="utf-8")
+    for qin, (_gloss, quotes) in SHI_CHI.items():
+        for q in re.findall(r"「([^」]+)」", quotes):
+            assert q in text, f"{qin} 引文不在原文存档中：{q}"
