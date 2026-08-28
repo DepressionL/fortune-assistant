@@ -1,0 +1,31 @@
+  error: subprocess-exited-with-error
+  
+  Preparing editable metadata (pyproject.toml) did not run successfully.
+  exit code: 1
+  
+  [14 lines of output]
+  D:\ai¹¤×÷Çø\fortune-assistant\.venv\Lib\site-packages\setuptools\config\pyprojecttoml.py:108: _BetaConfiguration: Support for `[tool.setuptools]` in `pyproject.toml` is still *beta*.
+    warnings.warn(msg, _BetaConfiguration)
+  running dist_info
+  creating C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info
+  writing C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\PKG-INFO
+  writing dependency_links to C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\dependency_links.txt
+  writing entry points to C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\entry_points.txt
+  writing requirements to C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\requires.txt
+  writing top-level names to C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\top_level.txt
+  writing manifest file 'C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\SOURCES.txt'
+  reading manifest file 'C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\SOURCES.txt'
+  writing manifest file 'C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant.egg-info\SOURCES.txt'
+  creating 'C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-modern-metadata-dkxcgg34\fortune_assistant-0.1.0.dist-info'
+  error: invalid command 'bdist_wheel'
+  [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+error: metadata-generation-failed
+
+Encountered error while generating package metadata.
+
+See above for output.
+
+note: This is an issue with the package mentioned above, not pip.
+hint: See above for details.

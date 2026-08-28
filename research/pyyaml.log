@@ -1,0 +1,9 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Collecting pyyaml
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/da/e3/ea007450a105ae919a72393cb06f122f288ef60bba2dc64b26e2646fa315/pyyaml-6.0.3-cp311-cp311-win_amd64.whl (158 kB)
+     -------------------------------------- 158.8/158.8 kB 9.9 MB/s eta 0:00:00
+Installing collected packages: pyyaml
+Successfully installed pyyaml-6.0.3
+
+[notice] A new release of pip available: 22.3.1 -> 26.2.1
+[notice] To update, run: D:\ai������\fortune-assistant\.venv\Scripts\python.exe -m pip install --upgrade pip

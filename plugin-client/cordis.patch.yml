@@ -1,0 +1,6 @@
+# dsh-fortune-client bundle 层：把客户端包登记进 loader roster（宿主行）。
+# 宿主面是 no-op stub（lib/index.js）；浏览器面由 dsh-client-modules
+# 扫描此行的 dsh.client 清单，经 /plugins/<id>/client.js 注入 Web。
+- insert:
+    - id: dsh-fortune-client
+      name: 'dsh-fortune-client'

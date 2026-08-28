@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+<defs><style>text{font-family:"Microsoft YaHei",sans-serif}.t{font-size:18px;fill:#1a1a1a}.s{font-size:12px;fill:#333}.h4{font-size:13px;fill:#b30000;font-weight:bold}.ds{font-size:13px;fill:#0d47a1}.x{stroke:#999;fill:none;stroke-width:1.2}.tk{font-size:13px;fill:#4a148c}</style></defs>
+<rect width="600" height="600" fill="#fdfcf7"/>
+<text x="300" y="28" text-anchor="middle" class="t" font-size="20">紫微斗数命盘</text>
+<circle cx="300" cy="300" r="210" class="x"/>
+<circle cx="300" cy="300" r="150" class="x"/>
+<circle cx="300" cy="300" r="90" class="x"/>
+<line x1="323.3" y1="386.9" x2="354.4" y2="502.8" class="x"/>
+<line x1="276.7" y1="386.9" x2="245.6" y2="502.8" class="x"/>
+<line x1="276.7" y1="386.9" x2="245.6" y2="502.8" class="x"/>
+<line x1="236.4" y1="363.6" x2="151.5" y2="448.5" class="x"/>
+<line x1="236.4" y1="363.6" x2="151.5" y2="448.5" class="x"/>
+<line x1="213.1" y1="323.3" x2="97.2" y2="354.4" class="x"/>
+<line x1="213.1" y1="323.3" x2="97.2" y2="354.4" class="x"/>
+<line x1="213.1" y1="276.7" x2="97.2" y2="245.6" class="x"/>
+<line x1="213.1" y1="276.7" x2="97.2" y2="245.6" class="x"/>
+<line x1="236.4" y1="236.4" x2="151.5" y2="151.5" class="x"/>
+<line x1="236.4" y1="236.4" x2="151.5" y2="151.5" class="x"/>
+<line x1="276.7" y1="213.1" x2="245.6" y2="97.2" class="x"/>
+<line x1="276.7" y1="213.1" x2="245.6" y2="97.2" class="x"/>
+<line x1="323.3" y1="213.1" x2="354.4" y2="97.2" class="x"/>
+<line x1="323.3" y1="213.1" x2="354.4" y2="97.2" class="x"/>
+<line x1="363.6" y1="236.4" x2="448.5" y2="151.5" class="x"/>
+<line x1="363.6" y1="236.4" x2="448.5" y2="151.5" class="x"/>
+<line x1="386.9" y1="276.7" x2="502.8" y2="245.6" class="x"/>
+<line x1="386.9" y1="276.7" x2="502.8" y2="245.6" class="x"/>
+<line x1="386.9" y1="323.3" x2="502.8" y2="354.4" class="x"/>
+<line x1="386.9" y1="323.3" x2="502.8" y2="354.4" class="x"/>
+<line x1="363.6" y1="363.6" x2="448.5" y2="448.5" class="x"/>
+<line x1="363.6" y1="363.6" x2="448.5" y2="448.5" class="x"/>
+<line x1="323.3" y1="386.9" x2="354.4" y2="502.8" class="x"/>
+<text x="300.0" y="406.0" text-anchor="middle" class="t">命宫(命宫)</text>
+<text x="300.0" y="422.0" text-anchor="middle" class="tk">丁亥</text>
+<text x="300.0" y="437.0" text-anchor="middle" class="ds">5-14</text>
+<text x="300.0" y="470.0" text-anchor="middle"><tspan class="s">巨门</tspan>　<tspan class="s">文曲</tspan>　<tspan class="s">天官</tspan>　<tspan class="s">月德</tspan></text>
+<text x="300.0" y="363.0" text-anchor="middle" class="s">临官</text>
+<text x="240.0" y="389.9" text-anchor="middle" class="t">兄弟</text>
+<text x="240.0" y="405.9" text-anchor="middle" class="tk">丙戌</text>
+<text x="240.0" y="420.9" text-anchor="middle" class="ds">115-124</text>
+<text x="210.0" y="445.9" text-anchor="middle"><tspan class="s">贪狼</tspan>　<tspan class="s">铃星</tspan>　<tspan class="s">龙池</tspan>　<tspan class="s">华盖</tspan>　<tspan class="s">旬空</tspan></text>
+<text x="268.5" y="354.6" text-anchor="middle" class="s">冠带</text>
+<text x="196.1" y="346.0" text-anchor="middle" class="t">夫妻</text>
+<text x="196.1" y="362.0" text-anchor="middle" class="tk">乙酉</text>
+<text x="196.1" y="377.0" text-anchor="middle" class="ds">105-114</text>
+<text x="144.1" y="380.0" text-anchor="middle"><tspan class="h4">太阴·科</tspan>　<tspan class="s">擎羊</tspan>　<tspan class="s">红鸾</tspan>　<tspan class="s">封诰</tspan></text>
+<text x="245.4" y="331.5" text-anchor="middle" class="s">沐浴</text>
+<text x="180.0" y="286.0" text-anchor="middle" class="t">子女</text>
+<text x="180.0" y="302.0" text-anchor="middle" class="tk">甲申</text>
+<text x="180.0" y="317.0" text-anchor="middle" class="ds">95-104</text>
+<text x="120.0" y="290.0" text-anchor="middle"><tspan class="s">紫微</tspan>　<tspan class="s">天府</tspan>　<tspan class="s">左辅</tspan>　<tspan class="s">禄存</tspan>　<tspan class="s">天马</tspan>　<tspan class="s">火星</tspan>　<tspan class="s">八座</tspan>　<tspan class="s">天贵</tspan>　<tspan class="s">孤辰</tspan></text>
+<text x="237.0" y="300.0" text-anchor="middle" class="s">长生</text>
+<text x="196.1" y="226.0" text-anchor="middle" class="t">财帛</text>
+<text x="196.1" y="242.0" text-anchor="middle" class="tk">癸未</text>
+<text x="196.1" y="257.0" text-anchor="middle" class="ds">85-94</text>
+<text x="144.1" y="200.0" text-anchor="middle"><tspan class="s">天机</tspan>　<tspan class="s">天钺</tspan>　<tspan class="s">陀罗</tspan>　<tspan class="s">天寿</tspan>　<tspan class="s">天月</tspan>　<tspan class="s">天空</tspan>　<tspan class="s">空亡</tspan></text>
+<text x="245.4" y="268.5" text-anchor="middle" class="s">养</text>
+<text x="240.0" y="182.1" text-anchor="middle" class="t">疾厄</text>
+<text x="240.0" y="198.1" text-anchor="middle" class="tk">壬午</text>
+<text x="240.0" y="213.1" text-anchor="middle" class="ds">75-84</text>
+<text x="210.0" y="134.1" text-anchor="middle"><tspan class="s">破军</tspan>　<tspan class="s">右弼</tspan>　<tspan class="s">地劫</tspan>　<tspan class="s">三台</tspan>　<tspan class="s">天福</tspan>　<tspan class="s">截路</tspan>　<tspan class="s">阴煞</tspan>　<tspan class="s">天使</tspan></text>
+<text x="268.5" y="245.4" text-anchor="middle" class="s">胎</text>
+<text x="300.0" y="166.0" text-anchor="middle" class="t">迁移</text>
+<text x="300.0" y="182.0" text-anchor="middle" class="tk">辛巳</text>
+<text x="300.0" y="197.0" text-anchor="middle" class="ds">65-74</text>
+<text x="300.0" y="110.0" text-anchor="middle"><tspan class="h4">太阳·禄</tspan>　<tspan class="s">天姚</tspan>　<tspan class="s">天才</tspan>　<tspan class="s">天巫</tspan>　<tspan class="s">破碎</tspan></text>
+<text x="300.0" y="237.0" text-anchor="middle" class="s">绝</text>
+<text x="360.0" y="182.1" text-anchor="middle" class="t">仆役</text>
+<text x="360.0" y="198.1" text-anchor="middle" class="tk">庚辰</text>
+<text x="360.0" y="213.1" text-anchor="middle" class="ds">55-64</text>
+<text x="390.0" y="134.1" text-anchor="middle"><tspan class="h4">武曲·权</tspan>　<tspan class="s">地空</tspan>　<tspan class="s">凤阁</tspan>　<tspan class="s">寡宿</tspan>　<tspan class="s">天伤</tspan>　<tspan class="s">年解</tspan></text>
+<text x="331.5" y="245.4" text-anchor="middle" class="s">墓</text>
+<text x="403.9" y="226.0" text-anchor="middle" class="t">官禄</text>
+<text x="403.9" y="242.0" text-anchor="middle" class="tk">己卯</text>
+<text x="403.9" y="257.0" text-anchor="middle" class="ds">45-54</text>
+<text x="455.9" y="200.0" text-anchor="middle"><tspan class="h4">天同·忌</tspan>　<tspan class="s">文昌</tspan>　<tspan class="s">天喜</tspan>　<tspan class="s">咸池</tspan>　<tspan class="s">天德</tspan></text>
+<text x="354.6" y="268.5" text-anchor="middle" class="s">死</text>
+<text x="420.0" y="286.0" text-anchor="middle" class="t">田宅</text>
+<text x="420.0" y="302.0" text-anchor="middle" class="tk">戊寅</text>
+<text x="420.0" y="317.0" text-anchor="middle" class="ds">35-44</text>
+<text x="480.0" y="290.0" text-anchor="middle"><tspan class="s">七杀</tspan>　<tspan class="s">天厨</tspan>　<tspan class="s">蜚廉</tspan></text>
+<text x="363.0" y="300.0" text-anchor="middle" class="s">病</text>
+<text x="403.9" y="346.0" text-anchor="middle" class="t">福德(身宫)</text>
+<text x="403.9" y="362.0" text-anchor="middle" class="tk">己丑</text>
+<text x="403.9" y="377.0" text-anchor="middle" class="ds">25-34</text>
+<text x="455.9" y="380.0" text-anchor="middle"><tspan class="s">天梁</tspan>　<tspan class="s">天魁</tspan>　<tspan class="s">台辅</tspan>　<tspan class="s">天刑</tspan></text>
+<text x="354.6" y="331.5" text-anchor="middle" class="s">衰</text>
+<text x="360.0" y="389.9" text-anchor="middle" class="t">父母</text>
+<text x="360.0" y="405.9" text-anchor="middle" class="tk">戊子</text>
+<text x="360.0" y="420.9" text-anchor="middle" class="ds">15-24</text>
+<text x="390.0" y="445.9" text-anchor="middle"><tspan class="s">廉贞</tspan>　<tspan class="s">天相</tspan>　<tspan class="s">解神</tspan>　<tspan class="s">恩光</tspan>　<tspan class="s">天哭</tspan>　<tspan class="s">天虚</tspan></text>
+<text x="331.5" y="354.6" text-anchor="middle" class="s">帝旺</text>
+<text x="300" y="588" text-anchor="middle" font-size="11" fill="#666">1990-06-15 13:29:44 男 五行局土五局 庚年四化天同忌｜引擎 x_iztro（iztro 移植）</text>
+</svg>

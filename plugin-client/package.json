@@ -1,0 +1,40 @@
+{
+  "name": "dsh-fortune-client",
+  "version": "0.1.0",
+  "description": "dsh-fortune 的 Web 客户端插件：fortune_* 七工具图形化盘面（八字四柱卡/五行条/紫微十二宫盘/六爻卦象/梅花体用/称骨/小六壬/历法），动效入场 + 语义 token 暗色自适应。结构化数据由 dsh-fortune 宿主插件的 presentationMeta 投影（block.meta）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.1-rc.2",
+    "@deepseek-ai/cordis": "^4.0.1",
+    "react": "^18.2.0"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT"
+}

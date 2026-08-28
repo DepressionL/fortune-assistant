@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 220">
+<rect width="420" height="220" fill="#fdfcf7"/>
+<text x="210.0" y="22" text-anchor="middle" font-size="15" fill="#1a1a1a"><tspan>五行分布</tspan></text>
+<rect x="40" y="110.0" width="46" height="40.0" fill="#2e7d32" rx="3"/>
+<text x="63.0" y="170" text-anchor="middle" font-size="14">木 0.80</text>
+<rect x="120" y="30.0" width="46" height="120.0" fill="#c62828" rx="3"/>
+<text x="143.0" y="170" text-anchor="middle" font-size="14">火 2.40</text>
+<rect x="200" y="78.0" width="46" height="72.0" fill="#8d6e63" rx="3"/>
+<text x="223.0" y="170" text-anchor="middle" font-size="14">土 1.44</text>
+<rect x="280" y="140.0" width="46" height="10.0" fill="#b8860b" rx="3"/>
+<text x="303.0" y="170" text-anchor="middle" font-size="14">金 0.20</text>
+<rect x="360" y="120.0" width="46" height="30.0" fill="#1565c0" rx="3"/>
+<text x="383.0" y="170" text-anchor="middle" font-size="14">水 0.60</text>
+</svg>

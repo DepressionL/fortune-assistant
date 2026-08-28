@@ -1,0 +1,17 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Obtaining file:///D:/ai%E5%B7%A5%E4%BD%9C%E5%8C%BA/fortune-assistant
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: fortune-assistant
+  Building editable for fortune-assistant (pyproject.toml): started
+  Building editable for fortune-assistant (pyproject.toml): finished with status 'done'
+  Created wheel for fortune-assistant: filename=fortune_assistant-0.1.0-0.editable-py3-none-any.whl size=3010 sha256=7e8ec972a5d48fcf618a29e462d17ec1340b99f14bfd7b3aa0dbb3ef5dd9d427
+  Stored in directory: C:\Users\www27\AppData\Local\Temp\dsh-SMyCNT\pip-ephem-wheel-cache-0ezll4cn\wheels\b8\9d\88\5e25fa2fa406aa1c8f4cff1596e9c1b716a9f49c7c9417b890
+Successfully built fortune-assistant
+Installing collected packages: fortune-assistant
+Successfully installed fortune-assistant-0.1.0
+
+[notice] A new release of pip available: 22.3.1 -> 26.2.1
+[notice] To update, run: D:\ai������\fortune-assistant\.venv\Scripts\python.exe -m pip install --upgrade pip

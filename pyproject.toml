@@ -1,0 +1,27 @@
+[project]
+name = "fortune-assistant"
+version = "0.1.0"
+description = "可靠的 Python 算命辅助工具：历法换算 + 排盘引擎（八字/紫微/六爻/梅花/小六壬/称骨），硬编码表经文献核验，争议项可配置。"
+requires-python = ">=3.9"
+dependencies = [
+    "lunar-python>=1.4.0",   # 主历法/八字引擎（纯 Python，6tail 维护）
+    "astral>=3.2",           # 太阳位置/真太阳时（纯 Python）
+    "typer>=0.9",            # CLI
+    "x-iztro>=0.4.0",        # 紫微斗数引擎（iztro v2.5.8 的 Rust+Python 移植）
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0", "sxtwl>=1.0.0"]  # sxtwl 仅用于交叉验证
+
+[project.scripts]
+fortune = "fortune.cli:app"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["fortune"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

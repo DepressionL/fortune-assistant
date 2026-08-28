@@ -1,0 +1,4 @@
+# dsh-fortune bundle patch layer：声明自身条目（loader 通过 patch insert 挂载本模块）
+- insert:
+    - id: dsh-fortune
+      name: dsh-fortune

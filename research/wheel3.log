@@ -1,0 +1,9 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Collecting wheel
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/2e/29/69cfbb602cd91690c55d38ba9fe53e6a7e76a6fa647bf38f19c138d25449/wheel-0.48.0-py3-none-any.whl (33 kB)
+Requirement already satisfied: packaging>=24.0 in d:\ai������\fortune-assistant\.venv\lib\site-packages (from wheel) (26.3)
+Installing collected packages: wheel
+Successfully installed wheel-0.48.0
+
+[notice] A new release of pip available: 22.3.1 -> 26.2.1
+[notice] To update, run: D:\ai������\fortune-assistant\.venv\Scripts\python.exe -m pip install --upgrade pip
