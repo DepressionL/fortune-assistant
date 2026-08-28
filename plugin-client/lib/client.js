@@ -335,7 +335,7 @@
           { id: "yongshen", label: "用神" },
         ];
         const selP = (c.pillars ?? [])[sel] ?? null;
-        return h("div", { className: "ft-node", style: { "--n": 0 }, ref: rootRef },
+        return h("div", { className: "ft-node", style: { "--n": 0 } },
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "八字排盘"),
             pills,
@@ -724,7 +724,7 @@
             h("span", { className: "ft-caption" }, "通行男命版 · 仅作文化参考"),
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
-          h("div", { className: "ft-w-row" },
+          h("div", { key: `w${play}`, className: "ft-w-row" },
             items.map(([k, v], i) => h("button", {
               key: k, type: "button",
               className: `ft-w-chip${sel === i ? " ft-sel" : ""}`,
@@ -747,7 +747,7 @@
                 }, qianStr(d.total_qian)),
                 h("div", { className: "ft-caption" }, "总骨重"),
                 h("button", { type: "button", className: "ft-btn",
-                  onClick: replay }, "↻ 重播动效"))
+                  onClick: replay }, "↻ 重播动效（四卡+总重）"))
             : null,
           d.verdict
             ? h("div", { className: "ft-verdict" }, d.verdict)
@@ -762,18 +762,22 @@
         ensureStyle();
         const d = metaData(block);
         const [step, setStep] = useState(3);   // 3 = 全部显示
-        const timer = useRef(null);
-        useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-        const reduced = typeof window !== "undefined"
-          && window.matchMedia
-          && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const timers = useRef([]);
+        useEffect(() => () => {
+          timers.current.forEach((t) => clearTimeout(t));
+        }, []);
         const replay = () => {
-          if (reduced) { setStep(3); return; }
-          if (timer.current) clearTimeout(timer.current);
+          // 用户主动触发的推演始终执行（减少动效时用快进节奏，不跳过）
+          timers.current.forEach((t) => clearTimeout(t));
+          timers.current = [];
+          const reduced = typeof window !== "undefined"
+            && window.matchMedia
+            && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          const gap = reduced ? 140 : 450;
           setStep(0);
-          timer.current = setTimeout(() => setStep(1), 450);
-          timer.current = setTimeout(() => setStep(2), 900);
-          timer.current = setTimeout(() => setStep(3), 1350);
+          timers.current.push(setTimeout(() => setStep(1), gap));
+          timers.current.push(setTimeout(() => setStep(2), gap * 2));
+          timers.current.push(setTimeout(() => setStep(3), gap * 3));
         };
         if (!d) return h(ToolRow, { block, title: "小六壬" });
         const info = d.info ?? {};
@@ -866,29 +870,14 @@
 
       const inject = ["slots"];
 
-      // 渲染打点（首次渲染时输出，用于定位分发断点）
-      const RENDER_LOG = {};
-
       function apply(ctx) {
         try {
           for (const [toolName, comp] of Object.entries(TOOLVIEWS)) {
-            ctx.slots.inject("tool.call.toolview", () => {
-              const un = ctx.slots.register({
-                name: "tool.call.toolview",
-                key: toolName,
-              }, comp);
-              try {
-                const keys = (ctx.slots.entries("tool.call.toolview") ?? [])
-                  .map((e) => e && e.options && e.options.key);
-                console.info(`[dsh-fortune-client] 注册 ${toolName} 后，槽内 keys:`, JSON.stringify(keys));
-              } catch (_e) { /* 忽略 */ }
-              return un;
-            });
+            ctx.slots.inject("tool.call.toolview", () => ctx.slots.register({
+              name: "tool.call.toolview",
+              key: toolName,
+            }, comp));
           }
-          try {
-            console.info(`[dsh-fortune-client] apply OK，注册 ${Object.keys(TOOLVIEWS).length} 个 toolview：`
-              + Object.keys(TOOLVIEWS).join(","));
-          } catch (_e) { /* 忽略日志失败 */ }
         } catch (e) {
           console.error("[dsh-fortune-client] apply 失败:", e);
           throw e;
