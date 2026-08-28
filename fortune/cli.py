@@ -56,12 +56,21 @@ def _resolve(year: int, month: int, day: int, hour: int, minute: int,
     return birth, config, nb
 
 
+#: DSH 宿主插件用它从子进程输出中拆出结构化数据
+META_MARKER = "===DSH_META_JSON==="
+
+
 def _dump_meta(path: str | None, obj) -> None:
-    """把结构化结果写为 JSON（供 DSH 客户端插件渲染图形化盘面）。"""
-    if not path:
-        return
-    pathlib.Path(path).write_text(
-        json.dumps(obj, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    """把结构化结果落盘 + 内嵌回传（供 DSH 客户端插件渲染图形化盘面）。
+
+    双通道：--meta-json <path> 时既写文件（CLI 用户兼容），又在 stdout
+    末尾以 META_MARKER 行内嵌一层 JSON——宿主插件拆出后随规范值交给
+    presentationMeta（无文件/无哈希/无时序依赖）。
+    """
+    text = json.dumps(obj, ensure_ascii=False, indent=1, default=str)
+    if path:
+        pathlib.Path(path).write_text(text, encoding="utf-8")
+    typer.echo(f"\n{META_MARKER}\n{text}")
 
 
 def _bazi_meta(chart, config) -> dict:
@@ -107,7 +116,6 @@ def bazi(
     if as_json:
         typer.echo(json.dumps(_bazi_meta(chart, config), ensure_ascii=False, indent=2))
         raise typer.Exit()
-    _dump_meta(meta_json, _bazi_meta(chart, config))
     text = md_report.full_report(birth, config, chart)
     if out_md:
         with open(out_md, "w", encoding="utf-8") as f:
@@ -120,6 +128,7 @@ def bazi(
         with open(out_svg, "w", encoding="utf-8") as f:
             f.write(svg)
         typer.echo(f"五行图已写入 {out_svg}")
+    _dump_meta(meta_json, _bazi_meta(chart, config))
 
 
 @app.command()
@@ -138,10 +147,10 @@ def chenggu(
                                  True, 23, False)
     res = chenggu_mod.calc(nb.lunar_year_ganzhi, abs(nb.lunar_month), nb.lunar_day,
                            nb.time_zhi)
-    _dump_meta(meta_json, {"tool": "chenggu", **dataclasses.asdict(res)})
     typer.echo(str(res))
     typer.echo("\n注：称骨为托名袁天罡的民间歌诀（通行男命版），仅作文化参考；"
                "女命版判词未收录。")
+    _dump_meta(meta_json, {"tool": "chenggu", **dataclasses.asdict(res)})
 
 
 @app.command()
@@ -153,10 +162,10 @@ def xiaoliuren(
 ):
     """小六壬（诸葛马前课）。"""
     res = xlr_mod.calc(month, day, hour_zhi)
+    typer.echo(str(res))
     _dump_meta(meta_json, {"tool": "xiaoliuren", **dataclasses.asdict(res),
                            "info": xlr_mod.PALACE_INFO[res.palace],
                            "finger": res.finger})
-    typer.echo(str(res))
 
 
 @app.command()
@@ -182,10 +191,10 @@ def meihua(
     else:
         typer.echo("请提供数字（2-3 个）或农历年月日时", err=True)
         raise typer.Exit(1)
+    typer.echo(str(res))
     _dump_meta(meta_json, {"tool": "meihua", **dataclasses.asdict(res),
                            "wuxing": {"ti": meihua_mod.GUA_WUXING[res.ti_gua],
                                       "yong": meihua_mod.GUA_WUXING[res.yong_gua]}})
-    typer.echo(str(res))
 
 
 @app.command()
@@ -204,8 +213,8 @@ def liuyao(
         raise typer.Exit(1)
     chart = __import__("fortune.liuyao", fromlist=[""]).from_coins(
         vals, month_zhi, day_ganzhi, coin_back)
-    _dump_meta(meta_json, {"tool": "liuyao", **dataclasses.asdict(chart)})
     typer.echo(str(chart))
+    _dump_meta(meta_json, {"tool": "liuyao", **dataclasses.asdict(chart)})
 
 
 @app.command()
@@ -232,13 +241,13 @@ def ziwei(
     try:
         from .ziwei import chart as ziwei_chart
         zc = ziwei_chart.build(nb, gender, config)
-        _dump_meta(meta_json, {"tool": "ziwei", **dataclasses.asdict(zc)})
         typer.echo(zc.markdown())
         if out_svg:
             svg = svg_report.ziwei_palace_svg(zc.palaces_for_svg(), note=zc.svg_note())
             with open(out_svg, "w", encoding="utf-8") as f:
                 f.write(svg)
             typer.echo(f"紫微盘已写入 {out_svg}")
+        _dump_meta(meta_json, {"tool": "ziwei", **dataclasses.asdict(zc)})
     except ImportError as e:
         typer.echo(f"紫微模块不可用：{e}", err=True)
         raise typer.Exit(1)
@@ -286,6 +295,14 @@ def solar_info(
                 "LI_DONG": "立冬", "XIAO_XUE": "小雪", "DA_XUE": "大雪"}
     jq = [{"name": _jq_name.get(k, k), "time": dt.toYmdHms()}
           for k, dt in list(nb.lunar.getJieQiTable().items())[:12]]
+    typer.echo(f"公历 {year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}")
+    typer.echo(f"农历 {nb.lunar_year}年{leap}{abs(lm)}月{nb.lunar_day}日  "
+               f"{nb.lunar_year_ganzhi}年 生肖{nb.lunar.getYearShengXiao()}")
+    typer.echo(f"四柱：{nb.eight_char.getYear()} {nb.eight_char.getMonth()} "
+               f"{nb.eight_char.getDay()} {nb.eight_char.getTime()}")
+    typer.echo("当年节气（前 12 个）：")
+    for e in jq:
+        typer.echo(f"  {e['name']} {e['time']}")
     _dump_meta(meta_json, {
         "tool": "solar_info",
         "solar": f"{year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}",
@@ -296,14 +313,6 @@ def solar_info(
                     nb.eight_char.getDay(), nb.eight_char.getTime()],
         "jieqi": jq,
     })
-    typer.echo(f"公历 {year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}")
-    typer.echo(f"农历 {nb.lunar_year}年{leap}{abs(lm)}月{nb.lunar_day}日  "
-               f"{nb.lunar_year_ganzhi}年 生肖{nb.lunar.getYearShengXiao()}")
-    typer.echo(f"四柱：{nb.eight_char.getYear()} {nb.eight_char.getMonth()} "
-               f"{nb.eight_char.getDay()} {nb.eight_char.getTime()}")
-    typer.echo("当年节气（前 12 个）：")
-    for e in jq:
-        typer.echo(f"  {e['name']} {e['time']}")
 
 
 def main() -> None:  # pragma: no cover

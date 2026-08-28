@@ -335,7 +335,7 @@
           { id: "yongshen", label: "用神" },
         ];
         const selP = (c.pillars ?? [])[sel] ?? null;
-        return h("div", { className: "ft-node", style: { "--n": 0 } },
+        return h("div", { className: "ft-node", style: { "--n": 0 }, ref: rootRef },
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "八字排盘"),
             pills,
@@ -866,12 +866,32 @@
 
       const inject = ["slots"];
 
+      // 渲染打点（首次渲染时输出，用于定位分发断点）
+      const RENDER_LOG = {};
+
       function apply(ctx) {
-        for (const [toolName, comp] of Object.entries(TOOLVIEWS)) {
-          ctx.slots.inject("tool.call.toolview", () => ctx.slots.register({
-            name: "tool.call.toolview",
-            key: toolName,
-          }, comp));
+        try {
+          for (const [toolName, comp] of Object.entries(TOOLVIEWS)) {
+            ctx.slots.inject("tool.call.toolview", () => {
+              const un = ctx.slots.register({
+                name: "tool.call.toolview",
+                key: toolName,
+              }, comp);
+              try {
+                const keys = (ctx.slots.entries("tool.call.toolview") ?? [])
+                  .map((e) => e && e.options && e.options.key);
+                console.info(`[dsh-fortune-client] 注册 ${toolName} 后，槽内 keys:`, JSON.stringify(keys));
+              } catch (_e) { /* 忽略 */ }
+              return un;
+            });
+          }
+          try {
+            console.info(`[dsh-fortune-client] apply OK，注册 ${Object.keys(TOOLVIEWS).length} 个 toolview：`
+              + Object.keys(TOOLVIEWS).join(","));
+          } catch (_e) { /* 忽略日志失败 */ }
+        } catch (e) {
+          console.error("[dsh-fortune-client] apply 失败:", e);
+          throw e;
         }
       }
 

@@ -69,51 +69,45 @@ test("fortune_bazi 转发出生参数与流派开关到 `python -m fortune.cli b
   assert.equal(opts.env.PYTHONIOENCODING, "utf-8");
 });
 
-test("execute 附带 --meta-json 落盘参数（路径按工具名+参数哈希确定）", async () => {
+test("execute 从输出中拆出内嵌 meta（标记后 JSON，模型面文本剔除标记）", async () => {
   const ctx = makeCtx();
+  const raw = "# 命盘报告\n\n正文内容\n\n===DSH_META_JSON===\n{\"tool\":\"bazi\",\"chart\":{\"pillars\":[]}}";
   const calls = [];
-  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn(calls) });
+  const spawn = (bin, args, opts) => {
+    calls.push({ bin, args, opts });
+    return { status: 0, stdout: raw, stderr: "" };
+  };
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn });
   const t = ctx.registered.find((x) => x.name === "fortune_bazi");
-  const a1 = { year: 1990, month: 6, day: 15, hour: 13 };
-  await t.execute(a1);
-  const args1 = calls[0].args;
-  const i1 = args1.indexOf("--meta-json");
-  assert.ok(i1 >= 0 && i1 === args1.length - 2, "--meta-json 应为倒数第二个参数");
-  const path1 = args1[i1 + 1];
-  assert.ok(path1.includes("dsh-fortune-fortune_bazi-"), path1);
-  await t.execute(a1);
-  const args2 = calls[1].args;
-  assert.equal(args2[args2.indexOf("--meta-json") + 1], path1, "同参数两次调用路径应一致");
-  await t.execute({ ...a1, hour: 14 });
-  const args3 = calls[2].args;
-  assert.notEqual(args3[args3.indexOf("--meta-json") + 1], path1, "不同参数路径应不同");
+  const res = await t.execute({ year: 1990, month: 6, day: 15, hour: 13 });
+  assert.equal(res.ok, true);
+  assert.equal(res.output, "# 命盘报告\n\n正文内容", "模型面文本应剔除标记与 JSON");
+  assert.deepEqual(res.meta, { tool: "bazi", chart: { pillars: [] } });
+  // argv 不再带 --meta-json（meta 随身，不依赖临时文件）
+  assert.ok(!calls[0].args.includes("--meta-json"));
 });
 
-test("presentationMeta 投影 readMeta 读取的结构化 JSON", () => {
+test("presentationMeta 投影 value.meta（无 meta 时 {ok:false}）", () => {
   const ctx = makeCtx();
-  apply(ctx, { projectDir: "D:/proj", pythonBin: "py",
-               spawn: makeSpawn([]),
-               readMeta: () => JSON.stringify({ tool: "bazi", chart: { pillars: [] } }) });
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn([]) });
   const t = ctx.registered.find((x) => x.name === "fortune_bazi");
-  const meta = t.output.presentationMeta({ year: 1990, month: 6, day: 15, hour: 13 }, {});
-  assert.equal(meta.ok, true);
-  assert.equal(meta.tool, "fortune_bazi");
-  assert.deepEqual(meta.data, { tool: "bazi", chart: { pillars: [] } });
+  const good = t.output.presentationMeta({}, { ok: true, meta: { tool: "bazi", chart: { pillars: [] } } });
+  assert.equal(good.ok, true);
+  assert.equal(good.tool, "fortune_bazi");
+  assert.deepEqual(good.data, { tool: "bazi", chart: { pillars: [] } });
+  const bad = t.output.presentationMeta({}, { ok: true, meta: null });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.data, null);
 });
 
-test("presentationMeta 在 readMeta 抛错/文件缺失时返回 {ok:false} 且不抛错", () => {
+test("无标记输出时 meta 为 null 且不影响文本", async () => {
   const ctx = makeCtx();
   apply(ctx, { projectDir: "D:/proj", pythonBin: "py",
-               spawn: makeSpawn([]),
-               readMeta: () => { throw new Error("ENOENT"); } });
-  for (const name of ["fortune_bazi", "fortune_ziwei", "fortune_liuyao",
-                      "fortune_meihua", "fortune_chenggu", "fortune_xiaoliuren",
-                      "fortune_solar_info"]) {
-    const t = ctx.registered.find((x) => x.name === name);
-    const meta = t.output.presentationMeta({}, {});
-    assert.equal(meta.ok, false, name);
-    assert.equal(meta.data, null);
-  }
+               spawn: () => ({ status: 0, stdout: "纯文本", stderr: "" }) });
+  const t = ctx.registered.find((x) => x.name === "fortune_liuyao");
+  const res = await t.execute({ backs: [1, 1, 1, 1, 1, 1], monthZhi: "午", dayGanzhi: "甲子" });
+  assert.equal(res.output, "纯文本");
+  assert.equal(res.meta, null);
 });
 
 test("fortune_ziwei 必带庚年四化/闰月开关", async () => {
@@ -137,7 +131,7 @@ test("fortune_meihua 数字起卦（2 个数）", async () => {
   const args = calls[0].args;
   assert.equal(args[2], "meihua");
   assert.deepEqual(args.slice(3, 5), ["12", "34"]);
-  assert.ok(args.includes("--meta-json"));
+  assert.ok(!args.includes("--meta-json"));
 });
 
 test("fortune_meihua 缺参数显式报错（不静默）", async () => {

@@ -14,9 +14,6 @@
 // 模板：本机已验证的 dsh-stable-asr / dsh-subtrans 插件
 //（$DSH_HOME\profiles\web 的 cordis.patch.yml 与 package.json 为注册范例）。
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 export const name = "dsh-fortune";
 export const inject = ["tools"];
@@ -30,10 +27,22 @@ function defaultSpawn(pythonBin, args, opts) {
   return spawnSync(pythonBin, args, opts);
 }
 
-function runCli(projectDir, pythonBin, args, timeoutMs, metaPath, spawn = defaultSpawn) {
-  const argv = [...args];
-  if (metaPath) argv.push("--meta-json", metaPath);
-  const res = spawn(pythonBin, ["-m", "fortune.cli", ...argv], {
+// meta 随身通道：CLI 在文本输出末尾以标记行内嵌一层结构化 JSON，
+// 插件在此拆出（模型面文本剔除标记），随规范值交给 presentationMeta。
+// 不再依赖临时文件/参数哈希——单次 spawn、无时序问题、重放安全。
+const META_MARKER = "===DSH_META_JSON===";
+
+function splitMeta(output) {
+  const idx = output.lastIndexOf(META_MARKER);
+  if (idx < 0) return { text: output, meta: null };
+  const jsonPart = output.slice(idx + META_MARKER.length).trim();
+  let meta = null;
+  try { meta = JSON.parse(jsonPart); } catch { meta = null; }
+  return { text: output.slice(0, idx).trim(), meta };
+}
+
+function runCli(projectDir, pythonBin, args, timeoutMs, spawn = defaultSpawn) {
+  const res = spawn(pythonBin, ["-m", "fortune.cli", ...args], {
     cwd: projectDir,
     encoding: "utf8",
     timeout: timeoutMs,
@@ -42,14 +51,16 @@ function runCli(projectDir, pythonBin, args, timeoutMs, metaPath, spawn = defaul
     // Python 管道输出强制 UTF-8，避免 Windows GBK 控制台编码导致乱码
     env: { ...process.env, PYTHONIOENCODING: "utf-8" },
   });
-  const output = ((res.stdout || "") + (res.stderr || "")).trim();
+  const raw = ((res.stdout || "") + (res.stderr || "")).trim();
   const ok = !res.error && res.status === 0;
+  const { text, meta } = splitMeta(raw);
   return {
     ok,
     exitCode: res.status === null ? -1 : res.status,
-    output: output.slice(0, MAX_OUT),
+    output: text.slice(0, MAX_OUT),
     error: res.error ? `spawn 失败: ${res.error.message}`
-      : (!ok && !output ? `exit=${res.status}` : ""),
+      : (!ok && !text ? `exit=${res.status}` : ""),
+    meta,
   };
 }
 
@@ -60,6 +71,7 @@ function textRender(_args, value) {
 }
 
 // 输出值 schema：object 根 + 对象级 required（DSH output schema 方言）
+// meta 字段 = CLI 内嵌的结构化结果（客户端 UI 的图形化盘面数据源）。
 const OUTPUT_TEXT = {
   schema: {
     type: "object",
@@ -70,6 +82,7 @@ const OUTPUT_TEXT = {
       exitCode: { type: "number" },
       output: { type: "string" },
       error: { type: "string" },
+      meta: { type: "object" },
     },
   },
   render: textRender,
@@ -106,32 +119,14 @@ function toParametersSchema(spec) {
 }
 
 // ---- 结构化元数据（presentationMeta）----
-function argsHash(obj) {
-  // 稳定的小哈希：同名同参的两次调用共用同一落盘路径（内容相同，无错配风险）
-  let h = 5381;
-  const s = JSON.stringify(obj ?? {});
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  }
-  return (h >>> 0).toString(36);
-}
-
-function metaPathFor(toolName, args) {
-  return join(tmpdir(), `dsh-fortune-${toolName}-${argsHash(args)}.json`);
-}
-
-function makePresentationMeta(toolName, readMeta = readFileSync) {
-  // presentationMeta(args, value)：同步读取 CLI 落盘的结构化 JSON，
-  // 投影为持久化展示元数据（客户端插件据此渲染图形化盘面）。
-  // 任何失败（文件不存在/解析失败）都返回 {ok:false}，绝不抛错。
-  return (args, _value) => {
-    try {
-      const text = readMeta(metaPathFor(toolName, args), "utf8");
-      const data = JSON.parse(text);
+// meta 从规范值 value.meta 取（CLI 单次执行的产物），不依赖文件/参数哈希。
+function makePresentationMeta(toolName) {
+  return (args, value) => {
+    const data = value && value.meta;
+    if (data && typeof data === "object") {
       return { ok: true, tool: toolName, data };
-    } catch {
-      return { ok: false, tool: toolName, data: null };
     }
+    return { ok: false, tool: toolName, data: null };
   };
 }
 
@@ -163,11 +158,9 @@ function pushBirth(argv, a) {
 export function apply(ctx, config = {}) {
   const projectDir = config.projectDir || process.cwd();
   const pythonBin = config.pythonBin || "python";
-  // 可注入 spawn / readMeta（测试用假实现断言 argv 构造与元数据投影；生产走同步原语）
+  // 可注入 spawn（测试用假实现断言 argv 构造与 meta 拆解；生产走同步原语）
   const spawn = config.spawn || defaultSpawn;
-  const readMeta = config.readMeta || readFileSync;
-  const call = (toolName, args, timeoutMs) =>
-    runCli(projectDir, pythonBin, args, timeoutMs, metaPathFor(toolName, args), spawn);
+  const call = (args, timeoutMs) => runCli(projectDir, pythonBin, args, timeoutMs, spawn);
 
   ctx.tools.register({
     name: "fortune_bazi",
@@ -183,14 +176,14 @@ export function apply(ctx, config = {}) {
       shenshaBase: ENUM("神煞索引基准：day(日干/日支,子平主流,默认)|year(年干/年支,古法)",
                         ["day", "year"]),
     }),
-    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_bazi", readMeta) },
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_bazi") },
     timeoutMs: BAZI_TIMEOUT,
     async execute(args) {
       const argv = ["bazi"];
       pushBirth(argv, args);
       if (args.school) argv.push("--school", args.school);
       if (args.shenshaBase) argv.push("--shensha-base", args.shenshaBase);
-      return call("fortune_bazi", argv, BAZI_TIMEOUT);
+      return call(argv, BAZI_TIMEOUT);
     },
   });
 
@@ -207,14 +200,14 @@ export function apply(ctx, config = {}) {
       leapMode: ENUM("闰月口径：as_month(按当月,默认)|mid_split(十五分界,iztro 默认)",
                      ["as_month", "mid_split"]),
     }),
-    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_ziwei", readMeta) },
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_ziwei") },
     timeoutMs: ZIWEI_TIMEOUT,
     async execute(args) {
       const argv = ["ziwei"];
       pushBirth(argv, args);
       if (args.gengSihua) argv.push("--geng-sihua", args.gengSihua);
       if (args.leapMode) argv.push("--leap-mode", args.leapMode);
-      return call("fortune_ziwei", argv, ZIWEI_TIMEOUT);
+      return call(argv, ZIWEI_TIMEOUT);
     },
   });
 
@@ -232,12 +225,12 @@ export function apply(ctx, config = {}) {
       gender: ENUM("性别", ["男", "女"]),
       lng: { type: "number", description: "出生地东经度数（默认 120）" },
     }),
-    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_chenggu", readMeta) },
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_chenggu") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
       const argv = ["chenggu"];
       pushBirth(argv, args);
-      return call("fortune_chenggu", argv, SHORT_TIMEOUT);
+      return call(argv, SHORT_TIMEOUT);
     },
   });
 
@@ -252,12 +245,12 @@ export function apply(ctx, config = {}) {
       hourZhi: ENUM("时支：子丑寅卯辰巳午未申酉戌亥",
                     "子丑寅卯辰巳午未申酉戌亥".split(""), true),
     }),
-    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_xiaoliuren", readMeta) },
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_xiaoliuren") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
       const argv = ["xiaoliuren", "--month", String(args.month),
                     "--day", String(args.day), "--hour-zhi", args.hourZhi];
-      return call("fortune_xiaoliuren", argv, SHORT_TIMEOUT);
+      return call(argv, SHORT_TIMEOUT);
     },
   });
 
@@ -273,7 +266,7 @@ export function apply(ctx, config = {}) {
       lunarDay: INT("时间起卦：农历日（1-30）"),
       hour: INT("时间起卦：时（0-23，取时支）"),
     }),
-    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_meihua", readMeta) },
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_meihua") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
       const argv = ["meihua"];
@@ -288,7 +281,7 @@ export function apply(ctx, config = {}) {
         return { ok: false, exitCode: -1, output: "",
                  error: "请提供 numbers（2-3 个整数）或农历时间起卦参数" };
       }
-      return call("fortune_meihua", argv, SHORT_TIMEOUT);
+      return call(argv, SHORT_TIMEOUT);
     },
   });
 
@@ -303,13 +296,13 @@ export function apply(ctx, config = {}) {
       dayGanzhi: STRING("日辰干支（如 甲子）", true),
       coinBack: ENUM("铜钱约定：yang(背=阳=3,主流,默认)|yin(背=阴)", ["yang", "yin"]),
     }),
-    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_liuyao", readMeta) },
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_liuyao") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
       const argv = ["liuyao", "--backs", args.backs.join(","),
                     "--month-zhi", args.monthZhi, "--day-ganzhi", args.dayGanzhi];
       if (args.coinBack) argv.push("--coin-back", args.coinBack);
-      return call("fortune_liuyao", argv, SHORT_TIMEOUT);
+      return call(argv, SHORT_TIMEOUT);
     },
   });
 
@@ -325,14 +318,14 @@ export function apply(ctx, config = {}) {
       hour: INT("时（0-23，默认 12）"),
       minute: INT("分（默认 0）"),
     }),
-    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_solar_info", readMeta) },
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_solar_info") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
       const argv = ["solar-info", "-y", String(args.year),
                     "-m", String(args.month), "-d", String(args.day)];
       if (args.hour !== undefined && args.hour !== null) argv.push("-H", String(args.hour));
       if (args.minute !== undefined && args.minute !== null) argv.push("-M", String(args.minute));
-      return call("fortune_solar_info", argv, SHORT_TIMEOUT);
+      return call(argv, SHORT_TIMEOUT);
     },
   });
 }
