@@ -54,14 +54,21 @@ function runCli(projectDir, pythonBin, args, timeoutMs, spawn = defaultSpawn) {
   const raw = ((res.stdout || "") + (res.stderr || "")).trim();
   const ok = !res.error && res.status === 0;
   const { text, meta } = splitMeta(raw);
-  return {
+  // CLI 失败时把失败标记与 stderr 正文前置，保证真实报错对用户/模型可见
+  // （不再被 output schema 的 meta 类型校验吞掉——meta 为 null 时省略该键）。
+  let output = text.slice(0, MAX_OUT);
+  if (!ok && text) {
+    output = `[CLI 执行失败（exit=${res.status === null ? -1 : res.status}）]\n${output}`;
+  }
+  const value = {
     ok,
     exitCode: res.status === null ? -1 : res.status,
-    output: text.slice(0, MAX_OUT),
+    output,
     error: res.error ? `spawn 失败: ${res.error.message}`
       : (!ok && !text ? `exit=${res.status}` : ""),
-    meta,
   };
+  if (meta !== null) value.meta = meta;   // meta 缺失时省略键（null 会触发 schema 类型错误）
+  return value;
 }
 
 function textRender(_args, value) {
@@ -173,6 +180,7 @@ export function apply(ctx, config = {}) {
       ...BIRTH_SPEC,
       school: ENUM("用神流派：wangshuai(旺衰,默认)|tiaohou(调候)|tongguan(通关)|geju(格局)",
                    ["wangshuai", "tiaohou", "tongguan", "geju"]),
+      schools: STRING("逗号分隔的多流派一次对比（覆盖 school），如 \"wangshuai,tiaohou\""),
       shenshaBase: ENUM("神煞索引基准：day(日干/日支,子平主流,默认)|year(年干/年支,古法)",
                         ["day", "year"]),
     }),
@@ -182,6 +190,7 @@ export function apply(ctx, config = {}) {
       const argv = ["bazi"];
       pushBirth(argv, args);
       if (args.school) argv.push("--school", args.school);
+      if (args.schools) argv.push("--schools", args.schools);
       if (args.shenshaBase) argv.push("--shensha-base", args.shenshaBase);
       return call(argv, BAZI_TIMEOUT);
     },
@@ -190,9 +199,11 @@ export function apply(ctx, config = {}) {
   ctx.tools.register({
     name: "fortune_ziwei",
     description:
-      "紫微斗数排盘：十二宫/十四主星/辅星杂曜/生年四化/大限/命身宫/命主身主/五行局/"
-      + "64 格局检测。引擎为 x-iztro（iztro v2.5.8 移植，716,314 条黄金用例回归）；"
-      + "庚年四化（天同忌主流/天相忌古法）与闰月口径可配。输出 Markdown 十二宫表。",
+      "紫微斗数排盘：十二宫/十四主星/辅星杂曜/生年四化（表头按实际生年显示，"
+      + "如丁年太阴禄/天同权/天机科/巨门忌；庚年两派为配置口径，见表头「配置口径」行）/"
+      + "大限/命身宫/命主身主/五行局/64 格局检测。引擎为 x-iztro（iztro v2.5.8 移植，"
+      + "716,314 条黄金用例回归）；庚年四化（天同忌主流/天相忌古法）与闰月口径可配。"
+      + "输出 Markdown 十二宫表。",
     parameters: toParametersSchema({
       ...BIRTH_SPEC,
       gengSihua: ENUM("庚年四化忌星：tiantong(天同,主流,默认)|tianxiang(天相,《全书》古法)",
@@ -238,7 +249,7 @@ export function apply(ctx, config = {}) {
     name: "fortune_xiaoliuren",
     description:
       "小六壬（诸葛马前课）：农历月日时三数落宫，六宫断辞。通行本规则，"
-      + "从 1 起数（大安起正月）。",
+      + "从 1 起数（大安起正月）。时辰按钟表时支（不做真太阳时校正）。",
     parameters: toParametersSchema({
       month: INT("农历月（1-12；闰月按当月，流派分歧见 README）", true),
       day: INT("农历日（1-30）", true),
@@ -258,7 +269,8 @@ export function apply(ctx, config = {}) {
     name: "fortune_meihua",
     description:
       "梅花易数起卦：数字起卦（2-3 个数）或农历时间起卦。给出本卦/互卦/变卦/"
-      + "动爻/体用生克与通行断语。64 卦名依通行《周易》（上象+下象规则）。",
+      + "动爻/体用生克与通行断语，附卦辞爻辞（通行本《周易》，阮刻十三经注疏本文字）。"
+      + "64 卦名依通行《周易》（上象+下象规则）；时间起卦时辰按钟表时支。",
     parameters: toParametersSchema({
       numbers: ARR_INT("数字起卦：2 或 3 个整数（如 [12,34]）"),
       lunarYear: INT("时间起卦：农历年（如 1990）"),
@@ -291,16 +303,24 @@ export function apply(ctx, config = {}) {
       "六爻起卦装卦：三枚铜钱六次投掷（自下而上），装世应/纳甲/六亲/六神/旬空/"
       + "动变。表依《增删卜易》《卜筮正宗》核验；铜钱「背为阳/阴」约定可配。",
     parameters: toParametersSchema({
-      backs: ARR_INT("六次投掷中「背」的个数（0-3），自下而上，如 [2,3,1,0,3,2]", true),
+      backs: ARR_INT("六次投掷中「背」的个数（0-3），自下而上，如 [2,3,1,0,3,2]；random=true 时可省略"),
       monthZhi: STRING("月建地支（子丑寅卯辰巳午未申酉戌亥）", true),
       dayGanzhi: STRING("日辰干支（如 甲子）", true),
       coinBack: ENUM("铜钱约定：yang(背=阳=3,主流,默认)|yin(背=阴)", ["yang", "yin"]),
+      random: BOOL("不提供 backs 时随机模拟三枚铜钱掷六次（每枚独立 50% 出背）"),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_liuyao") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
-      const argv = ["liuyao", "--backs", args.backs.join(","),
-                    "--month-zhi", args.monthZhi, "--day-ganzhi", args.dayGanzhi];
+      const argv = ["liuyao", "--month-zhi", args.monthZhi, "--day-ganzhi", args.dayGanzhi];
+      if (Array.isArray(args.backs) && args.backs.length > 0) {
+        argv.push("--backs", args.backs.join(","));
+      } else if (args.random) {
+        argv.push("--random");
+      } else {
+        return { ok: false, exitCode: -1, output: "",
+                 error: "请提供 backs（六次背数）或设 random=true 随机起卦" };
+      }
       if (args.coinBack) argv.push("--coin-back", args.coinBack);
       return call(argv, SHORT_TIMEOUT);
     },
@@ -310,7 +330,8 @@ export function apply(ctx, config = {}) {
     name: "fortune_solar_info",
     description:
       "历法速查：公历↔农历、年干支/生肖、四柱、当年节气精确时刻。"
-      + "用于在排盘前核对输入与节气边界（如立春换年）。",
+      + "注意：四柱为钟表时辰口径（未做真太阳时校正），与 bazi/ziwei 传 lng 后的"
+      + "校正盘可能时柱不同；用于排盘前核对输入与节气边界（如立春换年）。",
     parameters: toParametersSchema({
       year: INT("公历年", true),
       month: INT("公历月（1-12）", true),

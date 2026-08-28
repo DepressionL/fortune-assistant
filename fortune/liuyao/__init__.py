@@ -124,7 +124,8 @@ class LiuYaoLine:
     liu_qin: str         # 六亲
     liu_shen: str        # 六神
     is_moving: bool      # 是否动爻（6/9）
-    bian_liu_qin: str    # 变爻六亲（仍按本宫五行）
+    bian_gan_zhi: str    # 变爻纳甲干支（按变卦纳甲取支；非动爻时为「—」）
+    bian_liu_qin: str    # 变爻六亲（按变爻支、本宫五行论；非动爻时为「—」）
 
     @property
     def yin_yang(self) -> str:
@@ -153,9 +154,10 @@ class LiuYaoChart:
         L = []
         for ln in reversed(self.lines):
             mark = "○" if ln.value == 9 else "×" if ln.value == 6 else "  "
+            bian = f"  化{ln.bian_gan_zhi} {ln.bian_liu_qin}" if ln.is_moving else ""
             L.append(
                 f"{ln.no}爻 {ln.gan_zhi} {ln.liu_qin} {ln.liu_shen} "
-                f"{ln.name}{' (动)' if ln.is_moving else ''} {mark}"
+                f"{ln.name}{' (动)' if ln.is_moving else ''} {mark}{bian}"
             )
         return "\n".join([
             f"本卦 {self.ben_gua}（{self.palace}宫{self.palace_wuxing}） 世{self.shi}爻 应{self.ying}爻",
@@ -182,13 +184,17 @@ def build(lines: list[int], month_zhi: str, day_ganzhi: str, coin_back: str = "y
     # 变卦：动爻翻阴阳
     bian_lower_bits = tuple(1 - b if lines[i] in (6, 9) else b for i, b in enumerate(lower_bits))
     bian_upper_bits = tuple(1 - b if lines[i + 3] in (6, 9) else b for i, b in enumerate(upper_bits))
-    _, bian_name, _, _ = find_gua(BITS_TRIGRAM[bian_lower_bits], BITS_TRIGRAM[bian_upper_bits])
+    bian_lower_tri, bian_upper_tri = (BITS_TRIGRAM[bian_lower_bits], BITS_TRIGRAM[bian_upper_bits])
+    _, bian_name, _, _ = find_gua(bian_lower_tri, bian_upper_tri)
 
-    # 纳甲干支
+    # 纳甲干支（本卦）
     l_gan, _, l_zhi3, _ = NAJIA[lower]
     _, u_gan, _, u_zhi3 = NAJIA[upper]
     gan_zhis = [l_gan + z for z in l_zhi3] + [u_gan + z for z in u_zhi3]
-    bian_gan_zhis = gan_zhis[:]  # 变卦纳甲相同（地支不变，仅爻性变）
+    # 变爻纳甲干支：按变卦纳甲取支（《增删卜易》装卦法：动爻变后以变卦纳支为准）
+    bl_gan, _, bl_zhi3, _ = NAJIA[bian_lower_tri]
+    _, bu_gan, _, bu_zhi3 = NAJIA[bian_upper_tri]
+    bian_gan_zhis = [bl_gan + z for z in bl_zhi3] + [bu_gan + z for z in bu_zhi3]
 
     # 六神
     start = LIU_SHEN_START[day_ganzhi[0]]
@@ -202,10 +208,12 @@ def build(lines: list[int], month_zhi: str, day_ganzhi: str, coin_back: str = "y
         zhi = gz[1]
         qin = liu_qin(PALACE_WUXING[palace], ZHI_WUXING[zhi])
         moving = v in (6, 9)
-        # 变爻六亲：仍按本宫五行 + 变爻自身地支（地支不变）
+        bgz = bian_gan_zhis[i]
+        # 变爻六亲：以变爻支、本宫五行论（《卜筮正宗》通行；另一派以变卦宫论，见注释）
+        bqin = liu_qin(PALACE_WUXING[palace], ZHI_WUXING[bgz[1]])
         out.append(LiuYaoLine(
             no=i + 1, value=v, gan_zhi=gz, liu_qin=qin, liu_shen=shens[i],
-            is_moving=moving, bian_liu_qin=qin,
+            is_moving=moving, bian_gan_zhi=bgz, bian_liu_qin=bqin,
         ))
     return LiuYaoChart(
         ben_gua=ben_name, palace=palace, palace_wuxing=PALACE_WUXING[palace],

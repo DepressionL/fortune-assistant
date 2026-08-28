@@ -100,14 +100,57 @@ test("presentationMeta 投影 value.meta（无 meta 时 {ok:false}）", () => {
   assert.equal(bad.data, null);
 });
 
-test("无标记输出时 meta 为 null 且不影响文本", async () => {
+test("无标记输出时省略 meta 键（避免 null 触发 output schema 类型错误）", async () => {
   const ctx = makeCtx();
   apply(ctx, { projectDir: "D:/proj", pythonBin: "py",
                spawn: () => ({ status: 0, stdout: "纯文本", stderr: "" }) });
   const t = ctx.registered.find((x) => x.name === "fortune_liuyao");
   const res = await t.execute({ backs: [1, 1, 1, 1, 1, 1], monthZhi: "午", dayGanzhi: "甲子" });
   assert.equal(res.output, "纯文本");
-  assert.equal(res.meta, null);
+  assert.equal(res.meta, undefined);
+  assert.ok(!("meta" in res));
+});
+
+test("CLI 非零退出时错误正文前置可见（不再被 schema 吞掉）", async () => {
+  const ctx = makeCtx();
+  const exit2 = () => ({ status: 2, stdout: "", stderr: "bad args" });
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: exit2 });
+  const t = ctx.registered.find((x) => x.name === "fortune_solar_info");
+  const res = await t.execute({ year: 2024, month: 2, day: 10 });
+  assert.equal(res.ok, false);
+  assert.equal(res.exitCode, 2);
+  assert.ok(res.output.includes("CLI 执行失败"), "应带失败标记");
+  assert.ok(res.output.includes("bad args"), "应透出真实报错");
+});
+
+test("fortune_bazi --schools 多流派转发", async () => {
+  const ctx = makeCtx();
+  const calls = [];
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn(calls) });
+  const t = ctx.registered.find((x) => x.name === "fortune_bazi");
+  await t.execute({ year: 1990, month: 6, day: 15, hour: 13, schools: "tiaohou,tongguan" });
+  const args = calls[0].args;
+  assert.ok(args.includes("--schools") && args[args.indexOf("--schools") + 1] === "tiaohou,tongguan");
+});
+
+test("fortune_liuyao --random 随机起卦转发", async () => {
+  const ctx = makeCtx();
+  const calls = [];
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn(calls) });
+  const t = ctx.registered.find((x) => x.name === "fortune_liuyao");
+  const res = await t.execute({ monthZhi: "午", dayGanzhi: "甲子", random: true });
+  assert.equal(res.ok, true);
+  assert.ok(calls[0].args.includes("--random"));
+  assert.ok(!calls[0].args.includes("--backs"));
+});
+
+test("fortune_liuyao 既无 backs 也无 random 时显式报错", async () => {
+  const ctx = makeCtx();
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn([]) });
+  const t = ctx.registered.find((x) => x.name === "fortune_liuyao");
+  const res = await t.execute({ monthZhi: "午", dayGanzhi: "甲子" });
+  assert.equal(res.ok, false);
+  assert.ok(res.error.includes("random"));
 });
 
 test("fortune_ziwei 必带庚年四化/闰月开关", async () => {

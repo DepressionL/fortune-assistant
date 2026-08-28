@@ -21,7 +21,8 @@ def _table(headers: list[str], rows: list[list[str]]) -> str:
 
 
 def bazi_markdown(chart: BaziChart, config: FortuneConfig,
-                  birth: BirthInfo | None = None) -> str:
+                  birth: BirthInfo | None = None,
+                  schools: list[str] | None = None) -> str:
     lines: list[str] = []
     lines.append("## 八字（子平法）")
     lines.append("")
@@ -91,28 +92,44 @@ def bazi_markdown(chart: BaziChart, config: FortuneConfig,
     lines.append("```")
     lines.append("")
 
-    # 用神
-    ys = yongshen.compute_yongshen(chart, config.yongshen_school)
-    lines.append("### 用神（规则引擎输出）")
-    lines.append("")
-    lines.append("```")
-    lines.append(str(ys))
-    lines.append("```")
-    lines.append("")
+    # 用神（单流派或多流派对比）
+    school_list = schools or [config.yongshen_school]
+    if len(school_list) == 1:
+        ys = yongshen.compute_yongshen(chart, school_list[0])
+        lines.append("### 用神（规则引擎输出）")
+        lines.append("")
+        lines.append("```")
+        lines.append(str(ys))
+        lines.append("```")
+        lines.append("")
+    else:
+        lines.append("### 用神（多流派对比，规则引擎输出）")
+        lines.append("")
+        lines.append("> 各流派结论可能相互矛盾，均为经验规则，并列展示仅供对比参考。")
+        lines.append("")
+        for s in school_list:
+            ys = yongshen.compute_yongshen(chart, s)
+            lines.append(f"**流派：{s}**")
+            lines.append("")
+            lines.append("```")
+            lines.append(str(ys))
+            lines.append("```")
+            lines.append("")
     return "\n".join(lines)
 
 
 def full_report(birth: BirthInfo, config: FortuneConfig,
                 chart: BaziChart,
                 extra_sections: dict[str, str] | None = None,
-                misc_sections: dict[str, str] | None = None) -> str:
+                misc_sections: dict[str, str] | None = None,
+                yongshen_schools: list[str] | None = None) -> str:
     """汇总报告。extra_sections: 紫微等追加小节（标题→markdown）。"""
     parts: list[str] = ["# 命盘报告", ""]
     parts.append("> 本报告由 fortune-assistant 生成。排盘数据由第三方历法/排盘库计算"
                  "（lunar_python 等，经交叉验证）；硬编码表经文献核验，出处见各小节与"
                  "research/ 目录；用神等解读为流派相关经验规则，仅供参考。")
     parts.append("")
-    parts.append(bazi_markdown(chart, config, birth))
+    parts.append(bazi_markdown(chart, config, birth, schools=yongshen_schools))
     if extra_sections:
         for title, md in extra_sections.items():
             parts.append(f"## {title}")

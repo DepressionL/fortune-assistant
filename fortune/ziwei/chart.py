@@ -67,6 +67,8 @@ class ZiweiPalace:
 class ZiweiChart:
     solar_used: str
     gender: str
+    year_pillar: str                 # 生年干支（引擎口径）
+    sihua: list[tuple[str, str]]     # 生年四化 [(星名, 禄/权/科/忌)]，按禄权科忌序
     five_elements_class: str        # 五行局（如「土五局」）
     ming_index: int                 # 命宫在 palaces 中的索引
     shen_index: int                 # 身宫索引
@@ -79,11 +81,13 @@ class ZiweiChart:
     notes: list[str] = field(default_factory=list)
 
     def markdown(self) -> str:
+        sihua_txt = "、".join(f"{n}化{m}" for n, m in self.sihua)
         lines = [
             f"- 排盘时刻：{self.solar_used}（{self.gender}）",
+            f"- 生年四化（{self.year_pillar}年）：{sihua_txt}",
             f"- 五行局：{self.five_elements_class}　命主 {self.ming_zhu}　身主 {self.shen_zhu}",
-            f"- 庚年四化：{'天同化忌（主流）' if self.geng_sihua == 'tiantong' else '天相化忌（全书古法）'}；"
-            f"闰月：{'按当月' if self.leap_month_mode == 'as_month' else '十五分界' if self.leap_month_mode == 'mid_split' else self.leap_month_mode}",
+            f"- 配置口径：庚年化忌={'天同（主流）' if self.geng_sihua == 'tiantong' else '天相（《全书》古法）'}；"
+            f"闰月={'按当月' if self.leap_month_mode == 'as_month' else '十五分界' if self.leap_month_mode == 'mid_split' else self.leap_month_mode}",
             "",
             "| 宫 | 干支 | 大限 | 主星 | 辅星杂曜 | 十二长生 |",
             "|---|---|---|---|---|---|",
@@ -133,8 +137,9 @@ class ZiweiChart:
         return out
 
     def svg_note(self) -> str:
+        sihua_txt = " ".join(f"{n}化{m}" for n, m in self.sihua)
         return (f"{self.solar_used} {self.gender} 五行局{self.five_elements_class} "
-                f"庚年四化{'天同忌' if self.geng_sihua == 'tiantong' else '天相忌'}"
+                f"{self.year_pillar}年 {sihua_txt}"
                 "｜引擎 x_iztro（iztro 移植）")
 
 
@@ -199,16 +204,28 @@ def build(nb: NormalizedBirth, gender: str, config: FortuneConfig) -> ZiweiChart
         "争议：庚年四化、闰月口径见 config.ziwei_geng_sihua / ziwei_leap_month 与 research/ziwei_tables.md §11",
     ]
 
+    # 生年干支与四化：直接取自引擎盘面（与安星同一事实源，不另建表）
+    yearly = getattr(getattr(r, "raw_dates", None), "chinese_date", None)
+    year_pillar = "".join(yearly.yearly) if yearly is not None else ""
+    seen: dict[str, str] = {}
+    for p in r.palaces:
+        for st in p.major_stars:   # 注意：勿用 s 作循环变量（遮蔽上面的秒数 s）
+            if st.mutagen and st.name not in seen:
+                seen[st.name] = st.mutagen
+    sihua = sorted(seen.items(), key=lambda kv: "禄权科忌".index(kv[1]))
+
     # 格局（iztro 64 格局库；[破格] = 格局被化忌/煞曜破坏）
     patterns: list[str] = []
     for ph in r.patterns():
-        stars = "、".join(s.name for s in ph.stars)
+        stars = "、".join(st.name for st in ph.stars)
         mark = "[破格]" if ph.broken else ""
         patterns.append(f"{ph.name}（{ph.palace_name}）{mark}：{stars}")
 
     return ZiweiChart(
         solar_used=f"{y}-{m:02d}-{d:02d} {h:02d}:{mi:02d}:{s:02d}",
         gender=gender,
+        year_pillar=year_pillar,
+        sihua=sihua,
         five_elements_class=r.five_elements_class,
         ming_index=0, shen_index=shen_idx,
         ming_zhu=r.soul, shen_zhu=r.body,
