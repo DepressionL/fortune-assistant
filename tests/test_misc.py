@@ -29,6 +29,34 @@ def test_correct_true_solar_longitude_only():
     assert abs(shift - (4 * (105 - 120) + e)) < 1e-9
 
 
+def test_true_solar_shift_parts():
+    """偏移分解：经度差 = 4×(经度−120)，均时差与 equation_of_time 一致，和为总偏移。"""
+    lon_shift, eot = st.true_solar_shift_parts(112.454, 1997, 2, 24)
+    assert abs(lon_shift - 4 * (112.454 - 120)) < 1e-9
+    assert abs(eot - st.equation_of_time(112.454, 1997, 2, 24)) < 1e-9
+    *_, total = st.correct_true_solar(1997, 2, 24, 13, 5, 0, 112.454)
+    assert abs(total - (lon_shift + eot)) < 1e-9
+    # 太原案例锚点：经度差 ≈ −30.2 分、均时差 ≈ −13.3 分（2 月 24 日）
+    assert -30.5 < lon_shift < -29.9
+    assert -14.0 < eot < -12.5
+
+
+def test_timezone_conversion_step():
+    """时区换算：记录为 UTC+9 钟面时间 → 转 UTC+8 后再做真太阳时校正。"""
+    from fortune.config import FortuneConfig
+    from fortune.core.calendar import normalize
+    from fortune.core.model import BirthInfo
+    birth = BirthInfo(calendar="solar", year=1997, month=2, day=24, hour=13,
+                      minute=5, gender="男", longitude=112.454, timezone=9.0)
+    nb = normalize(birth, FortuneConfig(use_true_solar_time=True))
+    assert any(s.startswith("时区 UTC+9 → UTC+8") for s in nb.steps)
+    # 换算后钟面 = 12:05 北京时间，再校正 ≈ −43.5 分 → 11:21（真太阳时）
+    assert nb.solar_ymdhms[3:5] == (11, 21)
+    # 校正步骤应分项展示经度差与均时差
+    corr = next(s for s in nb.steps if s.startswith("真太阳时校正"))
+    assert "经度差" in corr and "均时差" in corr
+
+
 def test_china_dst():
     """夏令时区间 [开始日 02:00, 结束日 02:00)。"""
     # 开始日：01:59 未拨快，02:00 起为夏令时

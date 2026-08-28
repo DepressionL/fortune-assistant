@@ -82,6 +82,18 @@ def equation_of_time(longitude_east: float, year: int, month: int, day: int) -> 
     return (mean_noon_utc - t).total_seconds() / 60.0
 
 
+def true_solar_shift_parts(longitude_east: float, year: int, month: int,
+                           day: int) -> tuple[float, float]:
+    """真太阳时总偏移的两个分量：(经度差分钟, 均时差分钟)。
+
+    经度差 = 4×(经度−120) 分钟（把北京时间 UTC+8 换算为地方平太阳时的差值，
+    经度=120 时为 0）；均时差 EoT = 视太阳时 − 平太阳时。
+    总偏移 = 经度差 + 均时差。供报告分项展示与断言用。"""
+    lon_shift = 4.0 * (longitude_east - 120.0)
+    eot = equation_of_time(longitude_east, year, month, day)
+    return lon_shift, eot
+
+
 def correct_true_solar(year: int, month: int, day: int,
                        hour: int, minute: int, second: int,
                        longitude_east: float) -> tuple[int, int, int, int, int, int, float]:
@@ -91,7 +103,8 @@ def correct_true_solar(year: int, month: int, day: int,
     总偏移 = 4×(经度−120°) + EoT（分钟）。
     """
     base = _dt.datetime(year, month, day, hour, minute, second)
-    shift = 4.0 * (longitude_east - 120.0) + equation_of_time(longitude_east, year, month, day)
+    lon_shift, eot = true_solar_shift_parts(longitude_east, year, month, day)
+    shift = lon_shift + eot
     corrected = base + _dt.timedelta(minutes=shift)
     return (corrected.year, corrected.month, corrected.day,
             corrected.hour, corrected.minute, corrected.second, shift)

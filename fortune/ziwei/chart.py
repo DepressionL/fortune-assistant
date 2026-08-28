@@ -198,7 +198,11 @@ def build(nb: NormalizedBirth, gender: str, config: FortuneConfig) -> ZiweiChart
             is_laiyin=p.is_original_palace,
         ))
 
+    # 校正口径随盘展示（与八字报告同源 steps：时区/夏令时/真太阳时分项）
+    corr_notes = [s for s in nb.steps
+                  if s.startswith(("真太阳时校正", "时区", "扣 1 小时夏令时"))]
     notes = [
+        *corr_notes,
         "引擎：x_iztro 0.4.x（iztro v2.5.8 移植，716,314 条黄金用例；安星口径以 iztro 为准）",
         "星曜亮度按 iztro 标准（庙/旺/得/利/平/不/陷）；四化为生年干四化（含宫干自化见引擎原始输出）",
         "争议：庚年四化、闰月口径见 config.ziwei_geng_sihua / ziwei_leap_month 与 research/ziwei_tables.md §11",

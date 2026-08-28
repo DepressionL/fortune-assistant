@@ -54,7 +54,7 @@ def _fail(msg: str) -> None:
 
 
 def _validate_birth(year: int, month: int, day: int, hour: int, minute: int,
-                    gender: str, longitude: float) -> None:
+                    gender: str, longitude: float, timezone: float = 8.0) -> None:
     """出生参数统一边界校验（各排盘命令共用，保证口径一致）。"""
     if not (1600 <= year <= 2200):
         _fail(f"年份 {year} 超出支持范围（1600-2200）")
@@ -74,6 +74,8 @@ def _validate_birth(year: int, month: int, day: int, hour: int, minute: int,
         _fail(f"性别须为 男/女，得到 {gender!r}")
     if not (-180 <= longitude <= 180):
         _fail(f"经度 {longitude} 须在 -180~180（东为正）")
+    if not (-12 <= timezone <= 14):
+        _fail(f"时区 {timezone} 须在 -12~14（小时，东为正）")
 
 
 def _validate_ganzhi(gz: str) -> None:
@@ -85,16 +87,18 @@ def _validate_ganzhi(gz: str) -> None:
 
 
 def _birth_from_solar(year: int, month: int, day: int, hour: int, minute: int,
-                      gender: str, longitude: float, is_dst: bool, note: str = "") -> BirthInfo:
+                      gender: str, longitude: float, is_dst: bool,
+                      timezone: float = 8.0, note: str = "") -> BirthInfo:
     return BirthInfo(calendar="solar", year=year, month=month, day=day, hour=hour,
                      minute=minute, gender=gender, longitude=longitude, is_dst=is_dst,
-                     note=note)
+                     timezone=timezone, note=note)
 
 
 def _resolve(year: int, month: int, day: int, hour: int, minute: int,
              gender: str, longitude: float, true_solar: bool, day_change_hour: int,
-             is_dst: bool):
-    birth = _birth_from_solar(year, month, day, hour, minute, gender, longitude, is_dst)
+             is_dst: bool, timezone: float = 8.0):
+    birth = _birth_from_solar(year, month, day, hour, minute, gender, longitude,
+                              is_dst, timezone)
     config = FortuneConfig(use_true_solar_time=true_solar,
                            day_change_hour=day_change_hour)
     try:
@@ -150,6 +154,8 @@ def bazi(
     true_solar: bool = typer.Option(True, "--true-solar/--no-true-solar", help="是否真太阳时校正"),
     day_change_hour: int = typer.Option(23, "--day-change", help="换日时刻 23（传统主流）| 0"),
     is_dst: bool = typer.Option(False, "--dst", help="钟面时间是否为中国夏令时（1986-1991）"),
+    timezone: float = typer.Option(8.0, "--timezone",
+                                   help="出生记录所用标准时区（小时，东为正；默认 8=北京时间 UTC+8）"),
     school: str = typer.Option("wangshuai", "--school",
                                help="用神流派 wangshuai|tiaohou|tongguan|geju"),
     schools: str | None = typer.Option(None, "--schools",
@@ -161,7 +167,7 @@ def bazi(
     out_svg: str | None = typer.Option(None, "--svg", help="五行条 SVG 输出路径"),
 ):
     """八字排盘：四柱/藏干/十神/大运/神煞/旺衰/用神。"""
-    _validate_birth(year, month, day, hour, minute, gender, longitude)
+    _validate_birth(year, month, day, hour, minute, gender, longitude, timezone)
     school_list: list[str]
     if schools:
         school_list = [s.strip() for s in schools.split(",") if s.strip()]
@@ -173,7 +179,7 @@ def bazi(
             _fail(f"--school 非法流派 {school!r}（wangshuai|tiaohou|tongguan|geju）")
         school_list = [school]
     birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
-                                 true_solar, day_change_hour, is_dst)
+                                 true_solar, day_change_hour, is_dst, timezone)
     config.yongshen_school = school_list[0]
     config.shensha_base = shensha_base
     chart = build_bazi(nb, gender, config)
@@ -205,12 +211,14 @@ def chenggu(
     minute: int = typer.Option(0, "--minute", "-M"),
     gender: str = typer.Option("男", "--gender", "-g"),
     longitude: float = typer.Option(120.0, "--lng"),
+    timezone: float = typer.Option(8.0, "--timezone",
+                                   help="出生记录所用标准时区（小时，东为正；默认 8=北京时间 UTC+8）"),
     meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
 ):
     """袁天罡称骨（通行男命版；年按农历正月初一换年，时辰按校正后钟点）。"""
-    _validate_birth(year, month, day, hour, minute, gender, longitude)
+    _validate_birth(year, month, day, hour, minute, gender, longitude, timezone)
     birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
-                                 True, 23, False)
+                                 True, 23, False, timezone)
     res = chenggu_mod.calc(nb.lunar_year_ganzhi, abs(nb.lunar_month), nb.lunar_day,
                            nb.time_zhi)
     typer.echo(str(res))
@@ -362,6 +370,8 @@ def ziwei(
                                     help="是否真太阳时校正"),
     day_change_hour: int = typer.Option(23, "--day-change", help="换日时刻 23（传统主流）| 0"),
     is_dst: bool = typer.Option(False, "--dst", help="钟面时间是否为中国夏令时（1986-1991）"),
+    timezone: float = typer.Option(8.0, "--timezone",
+                                   help="出生记录所用标准时区（小时，东为正；默认 8=北京时间 UTC+8）"),
     geng_sihua: str = typer.Option("tiantong", "--geng-sihua",
                                    help="庚年四化忌星 tiantong(主流)|tianxiang(古法)"),
     leap_mode: str = typer.Option("as_month", "--leap-mode",
@@ -370,9 +380,9 @@ def ziwei(
     out_svg: str | None = typer.Option(None, "--svg", help="紫微盘 SVG 输出路径"),
 ):
     """紫微斗数排盘（引擎：x_iztro，见 README）。"""
-    _validate_birth(year, month, day, hour, minute, gender, longitude)
+    _validate_birth(year, month, day, hour, minute, gender, longitude, timezone)
     birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
-                                 true_solar, day_change_hour, is_dst)
+                                 true_solar, day_change_hour, is_dst, timezone)
     config.ziwei_geng_sihua = geng_sihua
     config.ziwei_leap_month = leap_mode
     try:
@@ -399,12 +409,14 @@ def liunian(
     minute: int = typer.Option(0, "--minute", "-M"),
     gender: str = typer.Option("男", "--gender", "-g"),
     longitude: float = typer.Option(120.0, "--lng"),
+    timezone: float = typer.Option(8.0, "--timezone",
+                                   help="出生记录所用标准时区（小时，东为正；默认 8=北京时间 UTC+8）"),
     target_year: int = typer.Option(..., "--target-year", help="要看的流年年份"),
 ):
     """流年分析：流年干支与原局、当前大运的合冲刑害（确定性关系事实）。"""
-    _validate_birth(year, month, day, hour, minute, gender, longitude)
+    _validate_birth(year, month, day, hour, minute, gender, longitude, timezone)
     birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
-                                 True, 23, False)
+                                 True, 23, False, timezone)
     chart = build_bazi(nb, gender, config)
     from .bazi.liunian import compute
     typer.echo(str(compute(chart, target_year)))

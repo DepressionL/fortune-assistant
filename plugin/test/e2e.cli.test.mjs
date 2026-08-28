@@ -35,12 +35,12 @@ test("e2e：全部工具 × 全部广告参数 真跑 CLI（契约）", { timeou
   const ctx = makeCtx();
   apply(ctx, { projectDir: PROJECT_DIR, pythonBin: PYTHON });
   const t = tools(ctx);
-  const BIRTH = { year: 1997, month: 2, day: 24, hour: 13, minute: 5, gender: "男" };
+  const BIRTH = { year: 1991, month: 1, day: 11, hour: 1, minute: 1, gender: "男" };
 
   // 1) 八字：完整 BIRTH_SPEC（含 dayChange/trueSolar=false 开关）+ 流派 + 神煞基准
   let r = await t.fortune_bazi.execute({
     ...BIRTH, lng: 112.454, trueSolar: false, dayChange: 0, dst: false,
-    school: "tiaohou", shenshaBase: "year",
+    tzHours: 8, school: "tiaohou", shenshaBase: "year",
   });
   assert.equal(r.ok, true, `bazi 失败: ${r.output}`);
   assert.equal(r.meta && r.meta.tool, "bazi");
@@ -70,9 +70,10 @@ test("e2e：全部工具 × 全部广告参数 真跑 CLI（契约）", { timeou
   assert.equal(r.meta.sihua.length, 4, "生年四化应恰 4 项");
   assert.match(r.meta.year_pillar, /^[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$/);
 
-  // 4) 紫微：默认口径（主流庚年/闰月按当月）
-  r = await t.fortune_ziwei.execute({ ...BIRTH, lng: 112.454 });
+  // 4) 紫微：默认口径（主流庚年/闰月按当月）+ 时区参数（UTC+9 记录）
+  r = await t.fortune_ziwei.execute({ ...BIRTH, lng: 112.454, tzHours: 9 });
   assert.equal(r.ok, true, `ziwei 默认口径失败: ${r.output}`);
+  assert.ok(r.output.includes("时区 UTC+9 → UTC+8"), "紫微报告应显示时区换算步骤");
 
   // 5) 称骨
   r = await t.fortune_chenggu.execute({ ...BIRTH, lng: 112.454 });
@@ -80,7 +81,7 @@ test("e2e：全部工具 × 全部广告参数 真跑 CLI（契约）", { timeou
   assert.equal(r.meta.tool, "chenggu");
 
   // 6) 历法速查
-  r = await t.fortune_solar_info.execute({ year: 1997, month: 2, day: 24, hour: 13, minute: 5 });
+  r = await t.fortune_solar_info.execute({ year: 1991, month: 1, day: 11, hour: 11, minute: 1 });
   assert.equal(r.ok, true, `solar_info 失败: ${r.output}`);
   assert.equal(r.meta.tool, "solar_info");
 
@@ -95,7 +96,7 @@ test("e2e：全部工具 × 全部广告参数 真跑 CLI（契约）", { timeou
   assert.ok(r.meta.zhouyi && r.meta.zhouyi.ben_gua_ci, "梅花应附卦辞");
 
   // 9) 梅花：时间起卦
-  r = await t.fortune_meihua.execute({ lunarYear: 1997, lunarMonth: 1, lunarDay: 18, hour: 13 });
+  r = await t.fortune_meihua.execute({ lunarYear: 1991, lunarMonth: 1, lunarDay: 18, hour: 13 });
   assert.equal(r.ok, true, `meihua 时间失败: ${r.output}`);
 
   // 10) 六爻：手动掷币（附规则化断语）

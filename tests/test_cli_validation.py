@@ -29,6 +29,21 @@ def test_bazi_out_of_range():
     assert "超出支持范围" in r.output
 
 
+def test_bazi_timezone_conversion():
+    """--timezone 9：记录钟面时间按 UTC+9 理解，先换算 UTC+8 再校正。"""
+    r = _invoke("bazi", "-y", "1997", "-m", "2", "-d", "24", "-H", "13", "-M", "5",
+                "-g", "男", "--lng", "112.454", "--timezone", "9")
+    assert r.exit_code == 0, r.output
+    assert "时区 UTC+9 → UTC+8" in r.output
+    assert "经度差" in r.output and "均时差" in r.output
+
+
+def test_bazi_timezone_out_of_range():
+    r = _invoke("bazi", "-y", "1997", "-m", "2", "-d", "24", "-H", "13", "--timezone", "20")
+    assert r.exit_code == 2
+    assert "时区" in r.output
+
+
 def test_liuyao_invalid_month_zhi():
     r = _invoke("liuyao", "--backs", "1,1,1,1,1,1", "--month-zhi", "猫",
                 "--day-ganzhi", "甲子")

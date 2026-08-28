@@ -20,7 +20,7 @@ from lunar_python import EightChar, Lunar, Solar
 
 from ..config import FortuneConfig
 from .model import BirthInfo
-from .solar_time import correct_true_solar
+from .solar_time import correct_true_solar, true_solar_shift_parts
 
 
 @dataclass
@@ -112,10 +112,12 @@ def normalize(birth: BirthInfo, config: FortuneConfig) -> NormalizedBirth:
     # 4) 真太阳时校正
     shift = None
     if config.use_true_solar_time:
+        lon_shift, eot = true_solar_shift_parts(birth.longitude, dt.year, dt.month, dt.day)
         y2, m2, d2, h2, mi2, s2, shift = correct_true_solar(
             dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, birth.longitude)
         dt = _dt.datetime(y2, m2, d2, h2, mi2, s2)
-        steps.append(f"真太阳时校正（东经{birth.longitude:g}°）：偏移 {shift:+.1f} 分钟")
+        steps.append(f"真太阳时校正（东经{birth.longitude:g}°）："
+                     f"经度差 {lon_shift:+.1f} 分 + 均时差 {eot:+.1f} 分 = {shift:+.1f} 分")
 
     y, m, d, h, mi, s = dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second
 

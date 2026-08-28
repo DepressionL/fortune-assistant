@@ -146,6 +146,7 @@ const BIRTH_SPEC = {
   minute: INT("分（0-59，默认 0）"),
   gender: ENUM("性别", ["男", "女"]),
   lng: { type: "number", description: "出生地东经度数（东为正，默认 120=不校正经度）" },
+  tzHours: { type: "number", description: "出生记录所用标准时区（小时，东为正；默认 8=北京时间 UTC+8。海外出生按当地标准时填，如纽约 -5、东京 9；1949 年前中国五时区记录按原时区填：昆仑 5.5/新藏 6/陇蜀 7/中原 8/长白 8.5）" },
   trueSolar: BOOL("是否真太阳时校正（默认 true）"),
   dayChange: ENUM("换日时刻：23（夜子时算次日，传统主流，默认）| 0（库默认）", [23, 0]),
   dst: BOOL("钟面时间是否为中国夏令时（1986-1991，默认 false）"),
@@ -157,6 +158,7 @@ function pushBirth(argv, a) {
   if (a.minute !== undefined && a.minute !== null) argv.push("-M", String(a.minute));
   if (a.gender) argv.push("-g", a.gender);
   if (a.lng !== undefined && a.lng !== null) argv.push("--lng", String(a.lng));
+  if (a.tzHours !== undefined && a.tzHours !== null) argv.push("--timezone", String(a.tzHours));
   if (a.trueSolar === false) argv.push("--no-true-solar");
   if (a.dayChange !== undefined && a.dayChange !== null) argv.push("--day-change", String(a.dayChange));
   if (a.dst) argv.push("--dst");

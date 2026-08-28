@@ -41,3 +41,43 @@ def test_spot_checks():
     assert zhouyi.yao_ci("火山旅", 0) is None
     assert zhouyi.yao_ci("火山旅", 7) is None
     assert zhouyi.gua_ci("不存在的卦") is None
+
+
+def test_against_independent_recitation_only_known_variants():
+    """与独立默写结果逐字比对：只允许 4 处已知经典异文（咷/啕×2、己/巳×2），
+    其余必须字符级全同——锁定本表已核验状态，防未来改动悄悄引入偏差。"""
+    import json
+    import pathlib
+
+    fixture = pathlib.Path(__file__).parent / "fixtures" / "zhouyi_subagent_recitation.json"
+    ref = json.loads(fixture.read_text(encoding="utf-8"))
+    PUNCT = "。，；、？！：（）()「」『』·—─…，?! "
+
+    def strip(s):
+        return "".join(c for c in s if c not in PUNCT)
+
+    def no_yaoti(s):
+        return s.split("：", 1)[1] if "：" in s else s
+
+    allowed = {
+        ("同人", 4, "咷", "啕"),
+        ("革", -1, "己", "巳"),   # -1 = 卦辞
+        ("革", 1, "己", "巳"),
+        ("旅", 5, "咷", "啕"),
+    }
+    found = set()
+    for body_name, (my_gua, my_yaos, _mean) in zhouyi.ZHOUYI.items():
+        lead = body_name + "，"
+        m_gua0 = my_gua[len(lead):] if my_gua.startswith(lead) else my_gua
+        r_gua = strip(ref[body_name]["卦辞"])
+        m_gua = strip(m_gua0)
+        if m_gua != r_gua:
+            found.add((body_name, -1))
+        for i in range(6):
+            m_y = strip(my_yaos[i])
+            r_y = strip(no_yaoti(ref[body_name]["爻辞"][i]))
+            if m_y != r_y:
+                found.add((body_name, i))
+    # 只允许已知异文；其他一切差异必须为空
+    keys = {(b, i) for b, i, *_ in allowed}
+    assert found == keys, f"出现未记录的差异：{found ^ keys}"
