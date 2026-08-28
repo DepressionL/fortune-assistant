@@ -1,16 +1,16 @@
 // dsh-fortune-client：Web 客户端插件（fortune_* 七工具按 wire tool name 注册
-// toolview 行渲染：八字四柱卡 + 五行条 + 紫微十二宫盘 + 六爻卦象 + 梅花体用 +
-// 称骨 + 小六壬 + 历法速查）。v0.1 设计要点：
-// - D1：settled 数据源 = block.meta（宿主插件 presentationMeta 投影——
-//   canonical value 不上 UI）；
-// - D2：样式零颜色字面量，全部走 --dsw-alias-* 语义 token（暗色主题自适应）；
-// - D3：动效：卡片入场 stagger、紫微十二宫逐宫绽放、六爻爻线逐爻描画、
-//   命宫/动爻呼吸脉冲、五行条生长、称骨总骨重弹入；prefers-reduced-motion
-//   全量降级；键盘焦点与 aria 标注无障碍；
-// - D4：meta 缺失（旧日志重放）时优雅回退到纯文本 details。
+// toolview 行渲染）。v0.2 起全盘可交互：
+// - 紫微：点宫位 → 星曜详情面板（亮度释义/四化/大限/长生），悬停高亮对宫；
+// - 八字：页签（四柱/五行/大运/神煞/关系/用神），点四柱卡看藏干十神详情；
+// - 六爻：点爻 → 六亲/六神释义面板，动爻脉冲；
+// - 梅花：点卦卡 → 上下卦爻位/先天数/五行详情；
+// - 小六壬：「逐步推演」重播月→日→时；称骨：「重播动效」。
+// 设计约束不变：settled 数据源 = block.meta（presentationMeta 投影）；
+// 零颜色字面量（--dsw-alias-* token，暗色自适应）；prefers-reduced-motion
+// 全量降级；按钮/页签键盘可达（focus-visible + aria-pressed/expanded）。
 (function () {
   "use strict";
-  if (typeof window === "undefined") return;   // 仅浏览器装配；node 测试注入后直接驱动
+  if (typeof window === "undefined") return;   // 仅浏览器装配
 
   window.__ModuleLoader__.load({
     id: "dsh-fortune-client",
@@ -20,10 +20,10 @@
       Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
       const react = require("react");
       const h = react.createElement;
-      const useState = react.useState;
+      const { useState, useEffect, useRef } = react;
 
       // ------------------------------------------------------------------
-      // 样式（D2/D3）：零颜色字面量；入场/脉冲/描画/生长动效；动效降级。
+      // 样式：语义 token + 入场/脉冲/描画/生长动效 + 交互态（页签/面板/悬停）
       // ------------------------------------------------------------------
       const STYLE_TEXT = [
         ".ft-node{font-family:inherit;border:1px solid var(--dsw-alias-border-l2);",
@@ -57,14 +57,36 @@
         ".ft-chip{font-size:11px;line-height:18px;padding:0 7px;border-radius:8px;",
         "border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);",
         "animation:ft-pop .18s cubic-bezier(.34,1.56,.64,1) both}",
-        // 八字四柱
+        // 页签（八字）
+        ".ft-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}",
+        ".ft-tab{font:inherit;font-size:11.5px;line-height:20px;padding:1px 10px;",
+        "border-radius:8px;border:1px solid var(--dsw-alias-border-l2);",
+        "color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-base);",
+        "cursor:pointer;transition:background .15s ease}",
+        ".ft-tab:hover{background:var(--dsw-alias-interactive-bg-hover)}",
+        ".ft-tab[aria-selected=true]{color:var(--dsw-alias-brand-primary);",
+        "border-color:var(--dsw-alias-brand-primary);",
+        "background:var(--dsw-alias-interactive-bg-active)}",
+        // 详情面板
+        ".ft-panel{margin-top:8px;border:1px solid var(--dsw-alias-border-l2);",
+        "border-radius:10px;padding:8px 10px;background:var(--dsw-alias-bg-base);",
+        "animation:ft-rise .22s ease-out both}",
+        ".ft-panel-h{font-size:12px;font-weight:600;color:var(--dsw-alias-brand-primary);",
+        "display:flex;align-items:center;gap:6px;flex-wrap:wrap}",
+        ".ft-panel-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:5px;font-size:11.5px;",
+        "color:var(--dsw-alias-label-secondary)}",
+        ".ft-legend{font-size:10.5px;color:var(--dsw-alias-label-tertiary);margin-top:5px}",
+        // 四柱
         ".ft-pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}",
         ".ft-pillar{border:1px solid var(--dsw-alias-border-l2);border-radius:10px;",
         "padding:8px 6px;text-align:center;background:var(--dsw-alias-bg-base);",
+        "cursor:pointer;transition:transform .15s ease,border-color .15s ease;",
         "animation:ft-rise .3s cubic-bezier(.22,1,.36,1) both;",
         "animation-delay:calc(var(--n,0)*80ms + 60ms)}",
-        ".ft-pillar.ft-day{border-color:var(--dsw-alias-brand-primary);",
+        ".ft-pillar:hover{transform:translateY(-2px)}",
+        ".ft-pillar.ft-sel,.ft-pillar.ft-day{border-color:var(--dsw-alias-brand-primary);",
         "box-shadow:0 0 0 1px var(--dsw-alias-brand-primary)}",
+        ".ft-pillar:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
         ".ft-pname{font-size:11px;color:var(--dsw-alias-label-tertiary)}",
         ".ft-gz{font-size:22px;font-weight:600;line-height:1.25;letter-spacing:.04em}",
         ".ft-day .ft-gz{color:var(--dsw-alias-brand-primary)}",
@@ -87,12 +109,15 @@
         // 紫微盘
         ".ft-zw{display:flex;justify-content:center;margin-top:8px}",
         ".ft-zw svg{max-width:100%;height:auto}",
-        ".ft-pal{opacity:0;transform-box:fill-box;transform-origin:center;",
+        ".ft-pal{opacity:0;transform-box:fill-box;transform-origin:center;cursor:pointer;",
         "animation:ft-bloom .45s cubic-bezier(.22,1,.36,1) forwards;",
         "animation-delay:calc(var(--i,0)*70ms)}",
         "@keyframes ft-bloom{0%{opacity:0;transform:scale(.6)}",
         "60%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}",
-        ".ft-pal:hover{filter:brightness(1.08)}",
+        ".ft-pal:hover{filter:brightness(1.1)}",
+        ".ft-pal.ft-sel{stroke:var(--dsw-alias-brand-primary);stroke-width:1.4}",
+        ".ft-pal.ft-opp{stroke:var(--dsw-alias-state-warn-primary);stroke-width:1.4;",
+        "stroke-dasharray:3 2}",
         ".ft-zw-ming{animation:ft-breathe 2.4s ease-in-out infinite}",
         ".ft-ring{fill:none;stroke:var(--dsw-alias-border-l2);stroke-width:1.2}",
         ".ft-sep{stroke:var(--dsw-alias-border-l2);stroke-width:1}",
@@ -101,8 +126,12 @@
         // 六爻
         ".ft-yaos{margin-top:8px;border:1px solid var(--dsw-alias-border-l2);",
         "border-radius:10px;padding:6px 10px;background:var(--dsw-alias-bg-base)}",
-        ".ft-yao{display:flex;align-items:center;gap:10px;padding:5px 0;",
+        ".ft-yao{display:flex;align-items:center;gap:10px;padding:5px 6px;",
+        "border-radius:8px;cursor:pointer;transition:background .15s ease;",
         "animation:ft-rise .25s ease-out both;animation-delay:calc(var(--n,0)*60ms)}",
+        ".ft-yao:hover{background:var(--dsw-alias-interactive-bg-hover)}",
+        ".ft-yao.ft-sel{background:var(--dsw-alias-interactive-bg-active);",
+        "outline:1px solid var(--dsw-alias-brand-primary)}",
         ".ft-yao-idx{width:34px;font-size:11px;color:var(--dsw-alias-label-tertiary);flex:none}",
         ".ft-yao-mark{width:14px;font-size:13px;flex:none;text-align:center}",
         ".ft-yao-mark.ft-mov{color:var(--dsw-alias-state-warn-primary);",
@@ -124,19 +153,24 @@
         ".ft-gua-row{display:flex;gap:10px;align-items:stretch;margin-top:8px;flex-wrap:wrap}",
         ".ft-gua-card{flex:1;min-width:120px;border:1px solid var(--dsw-alias-border-l2);",
         "border-radius:10px;padding:10px 8px;text-align:center;",
-        "background:var(--dsw-alias-bg-base);",
+        "background:var(--dsw-alias-bg-base);cursor:pointer;",
+        "transition:transform .15s ease,border-color .15s ease;",
         "animation:ft-rise .3s cubic-bezier(.22,1,.36,1) both;",
         "animation-delay:calc(var(--n,0)*90ms)}",
+        ".ft-gua-card:hover{transform:translateY(-2px)}",
+        ".ft-gua-card.ft-sel,.ft-ben{border-color:var(--dsw-alias-brand-primary)}",
+        ".ft-gua-card:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
         ".ft-gua-sym{font-size:30px;line-height:1.15;letter-spacing:.06em}",
         ".ft-gua-name{font-size:12px;color:var(--dsw-alias-label-primary);margin-top:3px}",
         ".ft-gua-tag{font-size:10px;color:var(--dsw-alias-label-tertiary);margin-top:2px}",
-        ".ft-ben{border-color:var(--dsw-alias-brand-primary)}",
         // 称骨
         ".ft-w-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}",
         ".ft-w-chip{flex:1;min-width:86px;text-align:center;border:1px solid var(--dsw-alias-border-l2);",
-        "border-radius:10px;padding:7px 4px;background:var(--dsw-alias-bg-base);",
+        "border-radius:10px;padding:7px 4px;background:var(--dsw-alias-bg-base);cursor:pointer;",
+        "transition:border-color .15s ease;",
         "animation:ft-pop .2s cubic-bezier(.34,1.56,.64,1) both;",
         "animation-delay:calc(var(--n,0)*80ms)}",
+        ".ft-w-chip.ft-sel,.ft-w-chip:hover{border-color:var(--dsw-alias-brand-primary)}",
         ".ft-w-k{font-size:10.5px;color:var(--dsw-alias-label-tertiary)}",
         ".ft-w-v{font-size:13px;color:var(--dsw-alias-label-primary);margin-top:2px}",
         ".ft-total{text-align:center;margin-top:12px}",
@@ -150,11 +184,21 @@
         ".ft-path{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:12px}",
         ".ft-step{display:flex;align-items:center;gap:6px;animation:ft-pop .2s both;",
         "animation-delay:calc(var(--n,0)*80ms)}",
+        ".ft-step.ft-dim{opacity:.35}",
         ".ft-arrow{color:var(--dsw-alias-label-tertiary)}",
         ".ft-palace{margin-top:10px;text-align:center;border:1px solid var(--dsw-alias-brand-primary);",
         "border-radius:12px;padding:12px;background:var(--dsw-alias-bg-base);",
         "animation:ft-bloom .4s cubic-bezier(.22,1,.36,1) both}",
         ".ft-palace-n{font-size:24px;font-weight:700;color:var(--dsw-alias-brand-primary)}",
+        // 按钮
+        ".ft-btn{font:inherit;font-size:11.5px;line-height:20px;padding:1px 10px;",
+        "border-radius:8px;border:1px solid var(--dsw-alias-border-l2);",
+        "color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base);",
+        "cursor:pointer;transition:background .15s ease}",
+        ".ft-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}",
+        ".ft-btn:active{background:var(--dsw-alias-interactive-bg-active)}",
+        ".ft-btn:focus-visible,.ft-tab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);",
+        "outline-offset:1px}",
         // 文本回退
         ".ft-details{margin-top:6px}",
         ".ft-details>summary{font-size:11px;color:var(--dsw-alias-label-tertiary);cursor:pointer}",
@@ -164,7 +208,8 @@
         "background:var(--dsw-alias-bg-layer-2)}",
         "@media (prefers-reduced-motion: reduce){",
         ".ft-node,.ft-pillar,.ft-gua-card,.ft-yao,.ft-w-chip,.ft-step,.ft-palace,",
-        ".ft-pill,.ft-chip,.ft-total-v,.ft-pal,.ft-glyph-yang,.ft-glyph-yin>i,.ft-bar>i{animation:none}",
+        ".ft-pill,.ft-chip,.ft-total-v,.ft-pal,.ft-glyph-yang,.ft-glyph-yin>i,.ft-bar>i,",
+        ".ft-panel{animation:none}",
         ".ft-bar>i{transition:none}.ft-pal{opacity:1}}",
       ].join("");
 
@@ -213,18 +258,63 @@
         return m && m.ok ? m.data : null;
       };
 
+      function TabBar({ tabs, active, onSelect }) {
+        return h("div", { className: "ft-tabs", role: "tablist" },
+          tabs.map((t) => h("button", {
+            key: t.id, type: "button", className: "ft-tab",
+            role: "tab", "aria-selected": String(active === t.id),
+            onClick: () => onSelect(t.id),
+          }, t.label)));
+      }
+
+      function DetailPanel({ title, children }) {
+        return h("div", { className: "ft-panel", role: "region",
+          "aria-label": title },
+          h("div", { className: "ft-panel-h" }, title),
+          children);
+      }
+
       // ------------------------------------------------------------------
-      // 八字视图
+      // 八字视图（页签 + 四柱点选）
       // ------------------------------------------------------------------
+      const SHI_SHEN_MEANING = {
+        比肩: "同我·同性（兄弟朋友，帮扶竞争）", 劫财: "同我·异性（竞争分夺）",
+        食神: "我生·同性（才华口福，温和输出）", 伤官: "我生·异性（锋芒才艺）",
+        正财: "我克·异性（稳定钱财、妻）", 偏财: "我克·同性（流动之财、父）",
+        正官: "克我·异性（职位、上司、夫）", 七杀: "克我·同性（压力、魄力）",
+        正印: "生我·异性（学业、母亲、庇荫）", 偏印: "生我·同性（冷门学识）",
+      };
+      const WX_ORDER = ["木", "火", "土", "金", "水"];
+      function WuxingPanel({ st }) {
+        const max = Math.max(0.01, ...Object.values(st.scores ?? {}));
+        return h("div", { className: "ft-sec" },
+          h("div", { className: "ft-sec-h" },
+            `五行旺衰（月令${st.month_wx ?? "?"}·${st.level ?? "?"}）`),
+          WX_ORDER.map((w, i) => h("div", {
+            key: w, className: "ft-bar-row", style: { "--n": i },
+          },
+            h("span", { className: "ft-bar-l" }, w),
+            h("div", { className: "ft-bar" },
+              h("i", { style: {
+                width: `${Math.max(3, ((st.scores?.[w] ?? 0) / max) * 100)}%`,
+                opacity: `${1 - i * 0.12}`,
+              } })),
+            h("span", { className: "ft-bar-v" },
+              `${(st.scores?.[w] ?? 0).toFixed(2)}`))),
+          h("div", { className: "ft-legend" },
+            `权重：月令旺相休囚死 × 藏干加权（经验参数，见 README）。`
+            + `日主${st.day_wx ?? "?"}：同类 ${st.same_score?.toFixed?.(2) ?? "?"}`
+            + ` / 异类 ${st.diff_score?.toFixed?.(2) ?? "?"}`));
+      }
       function BaziView({ block }) {
         ensureStyle();
         const d = metaData(block);
+        const [tab, setTab] = useState("pillars");
+        const [sel, setSel] = useState(2);
         if (!d) return h(ToolRow, { block, title: "八字排盘" });
         const c = d.chart ?? {};
         const st = d.strength ?? {};
         const ys = d.yongshen ?? {};
-        const wxMax = Math.max(0.01, ...Object.values(st.scores ?? {}));
-        const WX = ["木", "火", "土", "金", "水"];
         const pills = [];
         if (c.solar_used) pills.push(h("span", { className: "ft-pill" }, `排盘 ${c.solar_used}`));
         if (c.steps && c.steps.some((s) => String(s).includes("真太阳时"))) {
@@ -234,81 +324,110 @@
           pills.push(h("span", { className: "ft-pill" },
             `大运${c.yun_forward ? "顺行" : "逆行"} · 起运 ${c.yun_start_solar}（虚岁${c.yun_start_age}）`));
         }
-        const relations = (d.relations ?? []).map((r) => r.name);
-        const relText = relations.length
-          ? `${relations.length} 项：${[...new Set(relations)].join("、")}` : "无";
-        const shenshaHits = (d.shensha ?? []).filter((s) => s.positions && s.positions.length);
+        const relCount = (d.relations ?? []).length;
+        const ssHits = (d.shensha ?? []).filter((s) => s.positions && s.positions.length);
+        const tabs = [
+          { id: "pillars", label: "四柱" },
+          { id: "wuxing", label: "五行" },
+          { id: "dayun", label: `大运(${c.dayun?.length ?? 0})` },
+          { id: "shensha", label: `神煞(${ssHits.length})` },
+          { id: "relation", label: `关系(${relCount})` },
+          { id: "yongshen", label: "用神" },
+        ];
+        const selP = (c.pillars ?? [])[sel] ?? null;
         return h("div", { className: "ft-node", style: { "--n": 0 } },
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "八字排盘"),
             pills,
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
-          h("div", { className: "ft-pillars" },
-            (c.pillars ?? []).map((p, i) => h("div", {
-              key: p.name, className: `ft-pillar${i === 2 ? " ft-day" : ""}`,
-              style: { "--n": i },
-            },
-              h("div", { className: "ft-pname" }, p.name + (i === 2 ? "（日主）" : "")),
-              h("div", { className: "ft-gz" }, p.gan_zhi),
-              h("div", { className: "ft-sub" },
-                `${p.wu_xing} · ${p.na_yin} · ${p.shi_shen_gan}`),
-              h("div", { className: "ft-hide" },
-                (p.hide_gan ?? []).map((g, k) => `${g}(${p.shi_shen_zhi?.[k] ?? ""})`).join(" ")),
-              h("div", { className: "ft-sub" }, `${p.di_shi} · 旬空${p.xun_kong}`)))),
-          h("div", { className: "ft-sec" },
-            h("div", { className: "ft-sec-h" },
-              `五行旺衰（月令${st.month_wx ?? "?"}·${st.level ?? "?"}）`),
-            WX.map((w, i) => h("div", { key: w, className: "ft-bar-row", style: { "--n": i } },
-              h("span", { className: "ft-bar-l" }, w),
-              h("div", { className: "ft-bar" },
-                h("i", { style: { width: `${Math.max(3, ((st.scores?.[w] ?? 0) / wxMax) * 100)}%`,
-                                 opacity: `${1 - i * 0.12}` } })),
-              h("span", { className: "ft-bar-v" }, `${(st.scores?.[w] ?? 0).toFixed(2)}`)))),
-          c.dayun && c.dayun.length
+          h(TabBar, { tabs, active: tab, onSelect: setTab }),
+          tab === "pillars"
+            ? h("div", { className: "ft-pillars" },
+                (c.pillars ?? []).map((p, i) => h("button", {
+                  key: p.name, type: "button",
+                  className: `ft-pillar${i === 2 ? " ft-day" : ""}${sel === i ? " ft-sel" : ""}`,
+                  style: { "--n": i },
+                  onClick: () => setSel(i),
+                  "aria-pressed": String(sel === i),
+                },
+                  h("div", { className: "ft-pname" }, p.name + (i === 2 ? "（日主）" : "")),
+                  h("div", { className: "ft-gz" }, p.gan_zhi),
+                  h("div", { className: "ft-sub" },
+                    `${p.wu_xing} · ${p.na_yin} · ${p.shi_shen_gan}`),
+                  h("div", { className: "ft-hide" },
+                    (p.hide_gan ?? []).map((g, k) => `${g}(${p.shi_shen_zhi?.[k] ?? ""})`).join(" ")),
+                  h("div", { className: "ft-sub" }, `${p.di_shi} · 旬空${p.xun_kong}`))))
+            : null,
+          tab === "pillars" && selP
+            ? h(DetailPanel, {
+                title: `${selP.name} ${selP.gan_zhi} · ${selP.shi_shen_gan}`,
+              },
+                h("div", { className: "ft-panel-row" },
+                  h("span", null, `五行 ${selP.wu_xing}`),
+                  h("span", null, `纳音 ${selP.na_yin}`),
+                  h("span", null, `地势 ${selP.di_shi}`),
+                  h("span", null, `旬空 ${selP.xun_kong}`),
+                  h("span", null, SHI_SHEN_MEANING[selP.shi_shen_gan] ?? "")),
+                h("div", { className: "ft-legend" },
+                  `藏干：${(selP.hide_gan ?? []).map((g, k) =>
+                    `${g}→${selP.shi_shen_zhi?.[k] ?? ""}`).join("　")}`))
+            : null,
+          tab === "wuxing"
+            ? h(WuxingPanel, { st })
+            : null,
+          tab === "dayun"
             ? h("div", { className: "ft-sec" },
-                h("div", { className: "ft-sec-h" }, "大运"),
+                h("div", { className: "ft-sec-h" }, "大运（每步十年）"),
                 h("div", { className: "ft-chips" },
-                  c.dayun.map((d2, i) => h("span", {
+                  c.dayun?.map((d2, i) => h("span", {
                     key: i, className: "ft-chip",
                     style: { animationDelay: `${i * 50}ms` },
                   }, `${d2.gan_zhi} ${d2.start_age}-${d2.end_age}岁`))))
             : null,
-          h("div", { className: "ft-sec" },
-            h("div", { className: "ft-sec-h" }, `合冲刑害：${relText}`),
-            h("div", { className: "ft-chips" },
-              (d.relations ?? []).map((r, i) => h("span", {
-                key: i, className: "ft-chip",
-              }, `${r.name} ${(r.positions ?? []).join("/")}`)))),
-          shenshaHits.length
+          tab === "shensha"
             ? h("div", { className: "ft-sec" },
-                h("div", { className: "ft-sec-h" }, "神煞"),
+                h("div", { className: "ft-sec-h" }, "神煞（点击「四柱」页签查看命中的柱）"),
                 h("div", { className: "ft-chips" },
-                  shenshaHits.slice(0, 14).map((s, i) => h("span", {
-                    key: i, className: "ft-chip",
-                    title: s.note ?? "",
+                  ssHits.slice(0, 16).map((s, i) => h("span", {
+                    key: i, className: "ft-chip", title: s.note ?? "",
                   }, `${s.name}→${s.positions.join("/")}`))))
             : null,
-          ys.school
+          tab === "relation"
             ? h("div", { className: "ft-sec" },
-                h("div", { className: "ft-sec-h" }, `用神（${ys.school}）`),
+                h("div", { className: "ft-sec-h" }, "合冲刑害"),
+                h("div", { className: "ft-chips" },
+                  (d.relations ?? []).map((r, i) => h("span", {
+                    key: i, className: "ft-chip",
+                  }, `${r.name} ${(r.positions ?? []).join("/")}`))))
+            : null,
+          tab === "yongshen"
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, `用神（${ys.school}，规则引擎参考）`),
                 h("div", { className: "ft-chips" },
                   h("span", { className: "ft-pill ft-ok" },
                     `用 ${(ys.yong_wuxing ?? []).join("、") || "—"}`),
                   ys.ji_wuxing && ys.ji_wuxing.length
                     ? h("span", { className: "ft-pill ft-warn" },
-                        `忌 ${ys.ji_wuxing.join("、")}`) : null))
+                        `忌 ${ys.ji_wuxing.join("、")}`) : null),
+                h("div", { className: "ft-legend" },
+                  (ys.conclusions ?? []).slice(0, 3).join("；")))
             : null,
           h(ContentText, { block }));
       }
 
       // ------------------------------------------------------------------
-      // 紫微视图：十二宫盘（SVG，逐宫绽放）
+      // 紫微视图：十二宫盘（点宫看详情、悬停高亮对宫）
       // ------------------------------------------------------------------
-      const BR = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
+      const BRIGHT_MEANING = {
+        庙: "最吉，星力全显", 旺: "次吉", 得: "平吉", 利: "小吉",
+        平: "中和", 不: "陷弱", 陷: "最弱",
+      };
       function ZiweiView({ block }) {
         ensureStyle();
         const d = metaData(block);
+        const [sel, setSel] = useState(-1);
+        const [hover, setHover] = useState(-1);
         if (!d) return h(ToolRow, { block, title: "紫微斗数排盘" });
         const palaces = d.palaces ?? [];
         if (!palaces.length) return h(ToolRow, { block, title: "紫微斗数排盘" });
@@ -323,6 +442,8 @@
           const a = a1(i, off);
           return `${cx + R1 * Math.cos(a)},${cy - R1 * Math.sin(a)} ${cx + R3 * Math.cos(a)},${cy - R3 * Math.sin(a)}`;
         };
+        const opp = (i) => (i + 6) % 12;
+        const selP = sel >= 0 ? palaces[sel] : null;
         return h("div", { className: "ft-node", style: { "--n": 0 } },
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "紫微斗数排盘"),
@@ -334,16 +455,16 @@
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h("div", { className: "ft-zw" },
             h("svg", { viewBox: "0 0 500 500", width: 460, role: "img",
-              "aria-label": "紫微斗数十二宫盘" },
+              "aria-label": "紫微斗数十二宫盘（点击宫位查看星曜详情）" },
               h("circle", { cx, cy, r: R1, className: "ft-ring" }),
               h("circle", { cx, cy, r: R2, className: "ft-ring" }),
               h("circle", { cx, cy, r: R3, className: "ft-ring" }),
               Array.from({ length: 12 }, (_, i) => {
-                const x1y1 = line(i, 15).split(" ");
+                const xy = line(i, 15).split(" ");
                 return h("line", {
                   key: `sep${i}`,
-                  x1: x1y1[0].split(",")[0], y1: x1y1[0].split(",")[1],
-                  x2: x1y1[1].split(",")[0], y2: x1y1[1].split(",")[1],
+                  x1: xy[0].split(",")[0], y1: xy[0].split(",")[1],
+                  x2: xy[1].split(",")[0], y2: xy[1].split(",")[1],
                   className: "ft-sep",
                 });
               }),
@@ -353,11 +474,9 @@
                 const tag = p.is_ming ? "命" : p.is_shen ? "身"
                   : p.is_laiyin ? "因" : "";
                 const starSpans = [];
-                const seen = {};
                 (p.major ?? []).forEach(([n, b, mut]) => {
-                  seen[n] = true;
                   starSpans.push(h("tspan", {
-                    key: n, className: `ft-star ${mut ? "ft-star4 ft-mut" : ""}`,
+                    key: n, className: "ft-star ft-star4",
                     fill: mut
                       ? (mut === "忌" ? "var(--dsw-alias-state-error-primary)"
                          : mut === "禄" ? "var(--dsw-alias-state-success-primary)"
@@ -372,9 +491,22 @@
                     fill: "var(--dsw-alias-label-secondary)",
                   }, n, " ")));
                 return h("g", {
-                  key: p.name, className: `ft-pal${p.is_ming ? " ft-zw-ming" : ""}`,
+                  key: p.name, role: "button", tabIndex: 0,
+                  className: `ft-pal${p.is_ming ? " ft-zw-ming" : ""}`
+                    + `${sel === i ? " ft-sel" : ""}`
+                    + `${hover >= 0 && (i === opp(hover) && hover !== i) ? " ft-opp" : ""}`,
                   style: { "--i": i },
+                  onClick: () => setSel(sel === i ? -1 : i),
+                  onMouseEnter: () => setHover(i),
+                  onMouseLeave: () => setHover(-1),
+                  onKeyDown: (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSel(sel === i ? -1 : i);
+                    }
+                  },
                 },
+                  h("title", null, `点击查看 ${p.name} 星曜详情`),
                   h("text", {
                     x: mx, y: my - 12, textAnchor: "middle",
                     fill: "var(--dsw-alias-label-primary)", fontSize: 13,
@@ -392,6 +524,23 @@
                     x: sx, y: sy + 3, textAnchor: "middle", fontSize: 10,
                   }, starSpans));
               }))),
+          selP
+            ? h(DetailPanel, {
+                title: `${selP.name}${selP.is_ming ? "（命宫）" : selP.is_shen ? "（身宫）" : ""}${selP.is_laiyin ? "（来因宫）" : ""} · ${selP.gan_zhi} · 大限 ${selP.da_xian} 岁 · 长生「${selP.chang_sheng}」`,
+              },
+                h("div", { className: "ft-panel-row" },
+                  (selP.major ?? []).map(([n, b, mut]) => h("span", {
+                    key: n, className: "ft-chip",
+                    title: `亮度「${b}」：${BRIGHT_MEANING[b] ?? ""}`,
+                  }, `${n}${b ? `[${b}]` : ""}${mut ? `·${mut}` : ""}`))),
+                (selP.minor ?? []).length + (selP.adjective ?? []).length
+                  ? h("div", { className: "ft-legend" },
+                      `辅星杂曜：${[...(selP.minor ?? []), ...(selP.adjective ?? [])].join("、")}`)
+                  : null,
+                h("div", { className: "ft-legend" },
+                  `对宫：${palaces[opp(sel)].name}（${palaces[opp(sel)].gan_zhi}）。`
+                  + "亮度：庙最吉＞旺＞得＞利＞平＞不＞陷。"))
+            : null,
           d.patterns && d.patterns.length
             ? h("div", { className: "ft-sec" },
                 h("div", { className: "ft-sec-h" }, "格局（iztro 64 格局库）"),
@@ -404,13 +553,26 @@
       }
 
       // ------------------------------------------------------------------
-      // 六爻视图：爻线逐爻描画
+      // 六爻视图：点爻看六亲/六神释义
       // ------------------------------------------------------------------
+      const LIUQIN_MEANING = {
+        父母: "生我者——文书、长辈、房产、庇荫",
+        兄弟: "同我者——同辈、朋友、竞争、分财",
+        子孙: "我生者——晚辈、福神、财源、解忧",
+        妻财: "我克者——钱财、妻妾、资源",
+        官鬼: "克我者——官非、疾病、丈夫、压力",
+      };
+      const LIUSHEN_MEANING = {
+        青龙: "吉庆喜事", 朱雀: "口舌文书", 勾陈: "田土牵连",
+        螣蛇: "虚惊怪异", 白虎: "凶伤病丧", 玄武: "盗昧暗昧",
+      };
       function LiuyaoView({ block }) {
         ensureStyle();
         const d = metaData(block);
+        const [sel, setSel] = useState(-1);
         if (!d) return h(ToolRow, { block, title: "六爻起卦装卦" });
         const lines = d.lines ?? [];
+        const selL = sel >= 0 ? lines[sel] : null;
         return h("div", { className: "ft-node", style: { "--n": 0 } },
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "六爻起卦"),
@@ -423,40 +585,77 @@
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h("div", { className: "ft-yaos" },
-            [...lines].reverse().map((l, i) => h("div", {
-              key: l.no, className: "ft-yao", style: { "--n": i },
-            },
-              h("span", { className: "ft-yao-idx" }, `${l.no}爻`),
-              h("span", {
-                className: `ft-yao-mark${l.is_moving ? " ft-mov" : ""}`,
-                "aria-label": l.is_moving ? "动爻" : "",
-              }, l.is_moving ? (l.value === 9 ? "○" : "×") : ""),
-              h("div", { className: "ft-yao-glyph", style: { "--n": i } },
-                (l.value === 7 || l.value === 9)
-                  ? h("div", { className: "ft-glyph-yang" })
-                  : h("div", { className: "ft-glyph-yin" },
-                      h("i", null), h("i", null))),
-              h("div", { className: "ft-yao-chips" },
-                (l.no === d.shi ? h("span", { className: "ft-tag" }, "世") : null),
-                (l.no === d.ying ? h("span", { className: "ft-tag" }, "应") : null),
-                h("span", { className: "ft-chip" }, l.gan_zhi),
-                h("span", { className: "ft-chip" }, l.liu_qin),
-                h("span", { className: "ft-chip" }, l.liu_shen))))),
+            [...lines].reverse().map((l, i) => {
+              const idx = lines.length - 1 - i;   // 原始列表索引（自下而上）
+              return h("button", {
+                key: l.no, type: "button",
+                className: `ft-yao${sel === idx ? " ft-sel" : ""}`,
+                style: { "--n": i },
+                onClick: () => setSel(sel === idx ? -1 : idx),
+                "aria-pressed": String(sel === idx),
+              },
+                h("span", { className: "ft-yao-idx" }, `${l.no}爻`),
+                h("span", {
+                  className: `ft-yao-mark${l.is_moving ? " ft-mov" : ""}`,
+                  "aria-label": l.is_moving ? "动爻" : "",
+                }, l.is_moving ? (l.value === 9 ? "○" : "×") : ""),
+                h("div", { className: "ft-yao-glyph", style: { "--n": i } },
+                  (l.value === 7 || l.value === 9)
+                    ? h("div", { className: "ft-glyph-yang" })
+                    : h("div", { className: "ft-glyph-yin" },
+                        h("i", null), h("i", null))),
+                h("div", { className: "ft-yao-chips" },
+                  (l.no === d.shi ? h("span", { className: "ft-tag" }, "世") : null),
+                  (l.no === d.ying ? h("span", { className: "ft-tag" }, "应") : null),
+                  h("span", { className: "ft-chip" }, l.gan_zhi),
+                  h("span", { className: "ft-chip" }, l.liu_qin),
+                  h("span", { className: "ft-chip" }, l.liu_shen)));
+            })),
+          selL
+            ? h(DetailPanel, {
+                title: `${selL.no}爻 ${selL.gan_zhi}${selL.is_moving ? "（动爻）" : ""}${selL.no === d.shi ? " · 世爻" : selL.no === d.ying ? " · 应爻" : ""}`,
+              },
+                h("div", { className: "ft-panel-row" },
+                  h("span", null, `六亲「${selL.liu_qin}」：${LIUQIN_MEANING[selL.liu_qin] ?? ""}`),
+                  h("span", null, `六神「${selL.liu_shen}」：${LIUSHEN_MEANING[selL.liu_shen] ?? ""}`)),
+                h("div", { className: "ft-legend" },
+                  `${selL.is_moving
+                    ? `动爻（${selL.value === 9 ? "老阳○" : "老阴×"}），变卦中此爻阴阳翻转。`
+                    : "静爻，不变。"}`))
+            : null,
           h(ContentText, { block }));
       }
 
       // ------------------------------------------------------------------
-      // 梅花视图
+      // 梅花视图：点卦卡看爻位/先天数/五行
       // ------------------------------------------------------------------
       const GUA_SYM = { 乾: "☰", 兑: "☱", 离: "☲", 震: "☳",
                        巽: "☴", 坎: "☵", 艮: "☶", 坤: "☷" };
+      const GUA_INFO = {
+        乾: { bits: "☰ 阳阳阳", num: 1, wx: "金", nature: "天·健" },
+        兑: { bits: "☱ 阳阳阴", num: 2, wx: "金", nature: "泽·悦" },
+        离: { bits: "☲ 阳阴阳", num: 3, wx: "火", nature: "火·丽" },
+        震: { bits: "☳ 阳阴阴", num: 4, wx: "木", nature: "雷·动" },
+        巽: { bits: "☴ 阴阳阳", num: 5, wx: "木", nature: "风·入" },
+        坎: { bits: "☵ 阴阳阴", num: 6, wx: "水", nature: "水·险" },
+        艮: { bits: "☶ 阴阴阳", num: 7, wx: "土", nature: "山·止" },
+        坤: { bits: "☷ 阴阴阴", num: 8, wx: "土", nature: "地·顺" },
+      };
       function MeihuaView({ block }) {
         ensureStyle();
         const d = metaData(block);
+        const [sel, setSel] = useState("ben");
         if (!d) return h(ToolRow, { block, title: "梅花易数" });
         const sym = (up, lo) => `${GUA_SYM[up] ?? ""}${GUA_SYM[lo] ?? ""}`;
         const good = d.relation === "用生体" || d.relation === "比和";
         const bad = d.relation === "用克体";
+        const cards = [
+          { id: "ben", tag: "本卦 · 动爻第" + d.moving_line + "爻",
+            up: d.upper, lo: d.lower, name: d.ben_gua, cls: "ft-ben" },
+          { id: "hu", tag: "互卦", up: d.hu_upper, lo: d.hu_lower, name: d.hu_gua },
+          { id: "bian", tag: "变卦", up: d.bian_upper, lo: d.bian_lower, name: d.bian_gua },
+        ];
+        const selC = cards.find((x) => x.id === sel);
         return h("div", { className: "ft-node", style: { "--n": 0 } },
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "梅花易数"),
@@ -464,20 +663,24 @@
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h("div", { className: "ft-gua-row" },
-            h("div", { className: "ft-gua-card ft-ben", style: { "--n": 0 } },
-              h("div", { className: "ft-gua-sym" }, sym(d.upper, d.lower)),
-              h("div", { className: "ft-gua-name" }, d.ben_gua),
-              h("div", { className: "ft-gua-tag" }, `动爻 第${d.moving_line}爻`)),
-            h("div", { className: "ft-gua-card", style: { "--n": 1 } },
-              h("div", { className: "ft-gua-sym" },
-                sym(d.hu_upper, d.hu_lower)),
-              h("div", { className: "ft-gua-name" }, d.hu_gua),
-              h("div", { className: "ft-gua-tag" }, "互卦")),
-            h("div", { className: "ft-gua-card", style: { "--n": 2 } },
-              h("div", { className: "ft-gua-sym" },
-                sym(d.bian_upper, d.bian_lower)),
-              h("div", { className: "ft-gua-name" }, d.bian_gua),
-              h("div", { className: "ft-gua-tag" }, "变卦"))),
+            cards.map((c2, i) => h("button", {
+              key: c2.id, type: "button",
+              className: `ft-gua-card ${c2.cls ?? ""}${sel === c2.id ? " ft-sel" : ""}`,
+              style: { "--n": i },
+              onClick: () => setSel(c2.id),
+              "aria-pressed": String(sel === c2.id),
+            },
+              h("div", { className: "ft-gua-sym" }, sym(c2.up, c2.lo)),
+              h("div", { className: "ft-gua-name" }, c2.name),
+              h("div", { className: "ft-gua-tag" }, c2.tag)))),
+          selC
+            ? h(DetailPanel, { title: `${selC.tag}：${selC.name}` },
+                h("div", { className: "ft-panel-row" },
+                  h("span", null, `上卦 ${selC.up ?? "?"}（${GUA_INFO[selC.up]?.nature ?? ""}，先天数 ${GUA_INFO[selC.up]?.num ?? "?"}，五行 ${GUA_INFO[selC.up]?.wx ?? "?"}）`),
+                  h("span", null, `下卦 ${selC.lo ?? "?"}（${GUA_INFO[selC.lo]?.nature ?? ""}，先天数 ${GUA_INFO[selC.lo]?.num ?? "?"}，五行 ${GUA_INFO[selC.lo]?.wx ?? "?"}）`)),
+                h("div", { className: "ft-legend" },
+                  `卦符自下而上：${GUA_INFO[selC.up]?.bits ?? ""} / ${GUA_INFO[selC.lo]?.bits ?? ""}。`))
+            : null,
           h("div", { className: "ft-chips" },
             h("span", { className: "ft-pill" },
               `体卦 ${d.ti_gua}${d.wuxing ? `（${d.wuxing.ti}）` : ""}`),
@@ -493,7 +696,7 @@
       }
 
       // ------------------------------------------------------------------
-      // 称骨视图
+      // 称骨视图：点卡看构成 + 重播动效
       // ------------------------------------------------------------------
       const CN = "零一二三四五六七八九";
       const qianStr = (q) => {
@@ -505,6 +708,8 @@
       function ChengguView({ block }) {
         ensureStyle();
         const d = metaData(block);
+        const [sel, setSel] = useState(-1);
+        const [play, setPlay] = useState(0);
         if (!d) return h(ToolRow, { block, title: "袁天罡称骨" });
         const items = [
           [`年（${d.year_gz}）`, d.year_qian],
@@ -512,6 +717,7 @@
           [`日（农历${d.lunar_day}）`, d.day_qian],
           [`时（${d.hour_zhi}时）`, d.hour_qian],
         ];
+        const replay = () => setPlay((p) => p + 1);
         return h("div", { className: "ft-node", style: { "--n": 0 } },
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "袁天罡称骨"),
@@ -519,15 +725,29 @@
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h("div", { className: "ft-w-row" },
-            items.map(([k, v], i) => h("div", {
-              key: k, className: "ft-w-chip", style: { "--n": i },
+            items.map(([k, v], i) => h("button", {
+              key: k, type: "button",
+              className: `ft-w-chip${sel === i ? " ft-sel" : ""}`,
+              style: { "--n": i },
+              onClick: () => setSel(sel === i ? -1 : i),
+              "aria-pressed": String(sel === i),
             },
               h("div", { className: "ft-w-k" }, k),
               h("div", { className: "ft-w-v" }, qianStr(v))))),
+          sel >= 0
+            ? h(DetailPanel, { title: `${items[sel][0]} = ${qianStr(items[sel][1])}` },
+                h("div", { className: "ft-legend" },
+                  "骨重为通行本查表值（10 钱 = 1 两）；点其它卡片查看对应项。"))
+            : null,
           d.total_qian != null
             ? h("div", { className: "ft-total" },
-                h("span", { className: "ft-total-v" }, qianStr(d.total_qian)),
-                h("div", { className: "ft-caption" }, "总骨重"))
+                h("span", {
+                  key: `t${play}`,
+                  className: "ft-total-v",
+                }, qianStr(d.total_qian)),
+                h("div", { className: "ft-caption" }, "总骨重"),
+                h("button", { type: "button", className: "ft-btn",
+                  onClick: replay }, "↻ 重播动效"))
             : null,
           d.verdict
             ? h("div", { className: "ft-verdict" }, d.verdict)
@@ -536,17 +756,31 @@
       }
 
       // ------------------------------------------------------------------
-      // 小六壬视图
+      // 小六壬视图：「逐步推演」重播月→日→时
       // ------------------------------------------------------------------
       function XiaoliurenView({ block }) {
         ensureStyle();
         const d = metaData(block);
+        const [step, setStep] = useState(3);   // 3 = 全部显示
+        const timer = useRef(null);
+        useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+        const reduced = typeof window !== "undefined"
+          && window.matchMedia
+          && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const replay = () => {
+          if (reduced) { setStep(3); return; }
+          if (timer.current) clearTimeout(timer.current);
+          setStep(0);
+          timer.current = setTimeout(() => setStep(1), 450);
+          timer.current = setTimeout(() => setStep(2), 900);
+          timer.current = setTimeout(() => setStep(3), 1350);
+        };
         if (!d) return h(ToolRow, { block, title: "小六壬" });
         const info = d.info ?? {};
         const steps = [
-          `月 ${d.lunar_month}`, d.month_palace,
-          `日 ${d.lunar_day}`, d.day_palace,
-          `时 ${d.hour_zhi}`, d.palace,
+          [`月 ${d.lunar_month}`, d.month_palace],
+          [`日 ${d.lunar_day}`, d.day_palace],
+          [`时 ${d.hour_zhi}`, d.palace],
         ];
         const good = String(info["吉凶"] ?? "").includes("吉") && !String(info["吉凶"] ?? "").includes("凶");
         return h("div", { className: "ft-node", style: { "--n": 0 } },
@@ -554,17 +788,23 @@
             h("span", { className: "ft-title" }, "小六壬"),
             h("span", { className: "ft-caption" },
               `农历${d.lunar_month}月${d.lunar_day}日 ${d.hour_zhi}时`),
+            h("button", { type: "button", className: "ft-btn", onClick: replay },
+              "▶ 逐步推演"),
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h("div", { className: "ft-path" },
-            steps.map((s, i) => (i % 2 === 1)
-              ? h("span", {
-                  key: i, className: `ft-step ft-pill ${i === 5
-                    ? (good ? "ft-ok" : "ft-warn") : ""}`,
-                  style: { "--n": i },
-                }, s)
-              : h("span", { key: i, className: "ft-step", style: { "--n": i } },
-                  h("span", { className: "ft-caption" }, s)))),
+            steps.map(([k, v], i) => {
+              const dim = step < i + 1;
+              return [
+                i > 0 ? h("span", { key: `a${i}`, className: "ft-arrow" }, "→") : null,
+                h("span", { key: `s${i}`, className: `ft-step${dim ? " ft-dim" : ""}`,
+                  style: { "--n": i } },
+                  h("span", { className: "ft-caption" }, `${k} 落`),
+                  h("span", {
+                    className: `ft-pill ${i === 2 ? (good ? "ft-ok" : "ft-warn") : ""}`,
+                  }, v)),
+              ];
+            })),
           h("div", { className: "ft-palace" },
             h("div", { className: "ft-palace-n" }, d.palace),
             h("div", { className: "ft-meta", style: { justifyContent: "center" } },
