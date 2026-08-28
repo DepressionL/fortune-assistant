@@ -226,6 +226,10 @@ def ziwei(
     minute: int = typer.Option(0, "--minute", "-M"),
     gender: str = typer.Option("男", "--gender", "-g"),
     longitude: float = typer.Option(120.0, "--lng"),
+    true_solar: bool = typer.Option(True, "--true-solar/--no-true-solar",
+                                    help="是否真太阳时校正"),
+    day_change_hour: int = typer.Option(23, "--day-change", help="换日时刻 23（传统主流）| 0"),
+    is_dst: bool = typer.Option(False, "--dst", help="钟面时间是否为中国夏令时（1986-1991）"),
     geng_sihua: str = typer.Option("tiantong", "--geng-sihua",
                                    help="庚年四化忌星 tiantong(主流)|tianxiang(古法)"),
     leap_mode: str = typer.Option("as_month", "--leap-mode",
@@ -235,7 +239,7 @@ def ziwei(
 ):
     """紫微斗数排盘（引擎：x_iztro，见 README）。"""
     birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
-                                 True, 23, False)
+                                 true_solar, day_change_hour, is_dst)
     config.ziwei_geng_sihua = geng_sihua
     config.ziwei_leap_month = leap_mode
     try:
