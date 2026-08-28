@@ -115,10 +115,23 @@
         "animation:ft-rise .3s ease-out both;animation-delay:calc(var(--i,0)*55ms)}",
         ".ft-zw-cell:hover{border-color:var(--dsw-alias-state-warn-secondary)}",
         ".ft-zw-cell:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}",
+        // 选中：品牌边框 + 光晕呼吸脉冲（与命宫的静态身份框区分）
+        "@keyframes ft-glow-sel{0%,100%{box-shadow:0 0 0 2px var(--dsw-alias-brand-primary)}",
+        "50%{box-shadow:0 0 0 2px var(--dsw-alias-brand-primary),",
+        "0 0 12px 2px var(--dsw-alias-brand-primary)}}",
         ".ft-zw-cell.ft-sel{border-color:var(--dsw-alias-brand-primary);",
-        "box-shadow:0 0 0 1px var(--dsw-alias-brand-primary)}",
-        ".ft-zw-cell.ft-opp{border-color:var(--dsw-alias-state-warn-primary);border-style:dashed}",
-        ".ft-zw-cell.ft-ming{border-color:var(--dsw-alias-brand-primary)}",
+        "animation:ft-rise .3s ease-out both,ft-glow-sel 1.8s ease-in-out .4s infinite}",
+        // 悬停对宫：琥珀虚线 + 边框色柔呼吸（不改文字亮度）
+        "@keyframes ft-dash-h{0%,100%{border-color:var(--dsw-alias-state-warn-secondary)}",
+        "50%{border-color:var(--dsw-alias-state-warn-primary)}}",
+        ".ft-zw-cell.ft-opp-h{border-style:dashed;border-color:var(--dsw-alias-state-warn-secondary);",
+        "animation:ft-rise .3s ease-out both,ft-dash-h 1.5s ease-in-out infinite}",
+        // 点选对宫：品牌虚线 + 光晕脉冲（更强的确认态）
+        ".ft-zw-cell.ft-opp-s{border-style:dashed;border-color:var(--dsw-alias-brand-primary);",
+        "animation:ft-rise .3s ease-out both,ft-glow-sel 1.8s ease-in-out .4s infinite}",
+        // 命宫：品牌边框 + 底色 + 宫名着色（静态身份，不参与动效竞争）
+        ".ft-zw-cell.ft-ming{background:var(--dsw-alias-bg-layer-2)}",
+        ".ft-zw-cell.ft-ming .ft-zw-name{color:var(--dsw-alias-brand-primary)}",
         ".ft-zw-head{display:flex;align-items:baseline;justify-content:center;gap:4px;flex-wrap:wrap}",
         ".ft-zw-name{font-size:12.5px;font-weight:600;color:var(--dsw-alias-label-primary)}",
         ".ft-zw-mingtag{font-size:9px;line-height:14px;padding:0 4px;border-radius:6px;",
@@ -475,11 +488,14 @@
         const selZhi = sel >= 0 ? zhiOf(sel) : null;
         const selOppZhi = selZhi ? OPP[selZhi] : null;
         const oppZhi = selOppZhi;
+        const hoverZhi = hover >= 0 ? zhiOf(hover) : null;
         const cells = palaces.map((p, i) => {
           const zhi = String(p.gan_zhi ?? "").slice(-1);
           const [row, col] = CELL[zhi] ?? [4, 1];
           const isSel = sel === i;
-          const isOpp = selOppZhi !== null && selOppZhi === zhi && !isSel;
+          // 对宫联动：点选=品牌光晕虚线（确认态）；悬停=琥珀柔呼吸虚线（观察态）
+          const isOppS = selOppZhi !== null && selOppZhi === zhi && !isSel;
+          const isOppH = !isOppS && hoverZhi !== null && hoverZhi !== zhi && OPP[hoverZhi] === zhi;
           const tag = p.is_ming
             ? h("span", { className: "ft-zw-mingtag" }, "命")
             : p.is_shen
@@ -491,7 +507,7 @@
             key: `${p.name}-${i}`, type: "button", tabIndex: 0,
             className: `ft-zw-cell${p.is_ming ? " ft-ming" : ""}`
               + `${isSel ? " ft-sel" : ""}`
-              + `${isOpp ? " ft-opp" : ""}`,
+              + `${isOppS ? " ft-opp-s" : isOppH ? " ft-opp-h" : ""}`,
             style: { gridRow: row, gridColumn: col, "--i": i },
             onClick: () => setSel(isSel ? -1 : i),
             onMouseEnter: () => setHover(i),
@@ -541,9 +557,9 @@
                 `${d.solar_used ?? ""}${d.gender ? ` · ${d.gender}` : ""}`),
               h("div", { className: "ft-zw-center-l" },
                 selP && oppZhi
-                  ? `已选 ${selP.name}（${selZhi}），对宫 ${oppZhi}宫（虚线框）。`
-                  : "点选宫位查看星曜详情与对宫；悬停查看对应宫。",
-                h("span", null, " 配色：四化禄·权·科·忌；[庙]亮 [陷]暗。"))),
+                  ? `已选 ${selP.name}（${selZhi}），对宫 ${oppZhi}宫（品牌光晕虚线）；悬停任意宫会以琥珀虚线联动其六冲对宫。`
+                  : "点选宫位看星曜详情（品牌光晕）；悬停宫位联动其六冲对宫（琥珀虚线）。",
+                h("span", null, "配色：四化禄·权·科·忌；[庙]亮 [陷]暗；命宫=底色+品牌框。"))),
           selP            ? h(DetailPanel, {
                 title: `${selP.name}${selP.is_ming ? "（命宫）" : selP.is_shen ? "（身宫）" : ""}${selP.is_laiyin ? "（来因宫）" : ""} · ${selP.gan_zhi} · 大限 ${selP.da_xian} 岁 · 长生「${selP.chang_sheng}」`,
               },
