@@ -125,6 +125,7 @@ class ChengGuResult:
     hour_qian: int
     total_qian: int         # 总骨重（钱）
     verdict: str | None     # 判词（超出表范围时 None）
+    caliber: str = ""       # 时辰口径声明（出生信息推算时填写）
 
     @property
     def total_str(self) -> str:
@@ -146,6 +147,8 @@ class ChengGuResult:
             lines.append(f"  判词：{self.verdict}")
         else:
             lines.append("  判词：超出通行表范围（无记录）")
+        if self.caliber:
+            lines.append(f"  {self.caliber}")
         return "\n".join(lines)
 
 
@@ -171,3 +174,14 @@ def calc(year_gz: str, lunar_month: int, lunar_day: int, hour_zhi: str) -> Cheng
         year_qian=yq, month_qian=mq, day_qian=dq, hour_qian=hq,
         total_qian=total, verdict=VERDICT.get(total),
     )
+
+
+def calc_from_birth(birth: "BirthInfo", nb: "NormalizedBirth") -> ChengGuResult:
+    """出生信息计算称骨（农历正月初一换年，时辰按校正后钟点），并标注口径。"""
+    res = calc(nb.lunar_year_ganzhi, abs(nb.lunar_month), nb.lunar_day, nb.time_zhi)
+    if nb.true_solar_shift_min is not None:
+        res.caliber = (f"时辰口径：真太阳时支（校正 {nb.true_solar_shift_min:+.1f} 分，"
+                       "与八字/紫微一致）")
+    else:
+        res.caliber = "时辰口径：钟表时支（未做真太阳时校正）"
+    return res

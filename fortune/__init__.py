@@ -8,11 +8,12 @@
 
 模块：
 - fortune.config        流派配置（争议开关）
-- fortune.core          历法输入封装 / 真太阳时
-- fortune.bazi          八字排盘、神煞、旺衰、用神
-- fortune.ziwei         紫微斗数排盘
-- fortune.liuyao        六爻起卦装卦
+- fortune.core          历法输入封装 / 真太阳时 / BirthContext 工具联动
+- fortune.bazi          八字排盘、神煞、旺衰、用神、何知章、流年
+- fortune.ziwei         紫微斗数排盘（含格局只读复核）
+- fortune.liuyao        六爻起卦装卦（含占问用神聚焦）
 - fortune.misc          梅花易数 / 小六壬 / 称骨
+- fortune.comprehensive 无 LLM 综合聚合（共识矩阵 / 证据链 / 共识度）
 - fortune.report        Markdown 报告与 SVG 盘面
 - fortune.cli           命令行入口
 """

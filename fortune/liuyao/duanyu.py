@@ -322,4 +322,89 @@ def duanyu(chart: LiuYaoChart) -> str:
     return "\n".join(L)
 
 
-__all__ = ["duanyu"]
+#: 占问主题 → 用神六亲（《增删卜易》各占章通行取用；核对见 research/liuyao_tables.md §7）
+TOPIC_YONGSHEN = {
+    "求财": ("妻财",), "合伙": ("妻财", "兄弟"), "事业": ("官鬼",), "官非": ("官鬼",),
+    "婚恋": ("官鬼", "妻财"), "健康": ("子孙", "官鬼"), "考试": ("父母",),
+    "文书": ("父母",), "出行": ("世应",), "综合": (),
+}
+
+#: 主题取用说明（通行取用法，非断语）
+TOPIC_GLOSS = {
+    "求财": "求财以妻财为用神",
+    "合伙": "合伙以妻财为用神、兼看兄弟（劫财）",
+    "事业": "求官、事业以官鬼为用神",
+    "官非": "官非以官鬼为用神",
+    "婚恋": "婚恋以官鬼、妻财为用神（视所占对象取）",
+    "健康": "自身健康以世爻为本、子孙为福神，兼看官鬼为病",
+    "考试": "考试、文书以父母为用神",
+    "文书": "文书以父母为用神",
+    "出行": "出行以世应为主（世为己、应为目的地/对方）",
+}
+
+
+def _line_facts(chart: LiuYaoChart, ln) -> list[str]:
+    """一爻的规则事实清单（持世/动变/月建日辰/旬空/六神）。"""
+    items = []
+    if ln.no == chart.shi:
+        items.append("持世（本爻即世爻）")
+    if ln.is_moving:
+        rel = _bian_rel(ln.gan_zhi[1], ln.bian_gan_zhi[1])
+        items.append({
+            "回头生": "动化回头生（受益）", "回头克": "动化回头克（受制）",
+            "化泄": "动化泄（耗气）", "化出": "动化出（费力求成）",
+            "比和": "动化比和",
+        }[rel])
+        if ln.liu_qin != ln.bian_liu_qin:
+            items.append(f"六亲由{ln.liu_qin}化{ln.bian_liu_qin}")
+    mr = _phrase(_date_rel(chart.month_zhi, ln.gan_zhi[1]), chart.month_zhi, ln.gan_zhi[1], "月建")
+    dr = _phrase(_date_rel(chart.day_ganzhi[1], ln.gan_zhi[1]), chart.day_ganzhi[1], ln.gan_zhi[1], "日辰")
+    if mr:
+        items.append(mr)
+    if dr:
+        items.append(dr)
+    if ln.gan_zhi[1] in chart.xun_kong:
+        items.append("逢旬空（暂不主事，出空填实方应）")
+    items.append(f"{ln.liu_shen}临之（{LIU_SHEN_SHI[ln.liu_shen]}）")
+    return items
+
+
+def topic_focus(chart: LiuYaoChart, topic: str, question: str = "") -> str:
+    """按占问主题输出用神聚焦（Markdown）。只陈述规则事实，不做吉凶总断。
+
+    :param topic: 见 TOPIC_YONGSHEN 键；「综合」返回空串（全盘通论即 duanyu()）。
+    :param question: 自由文本占题（仅回显记录，不参与计算）。
+    """
+    if topic not in TOPIC_YONGSHEN:
+        raise ValueError(f"未知占问主题 {topic!r}（支持：{'/'.join(TOPIC_YONGSHEN)}）")
+    if topic == "综合":
+        return ""
+    L = [
+        f"### 用神聚焦（占题：{topic}{'「' + question + '」' if question else ''}）",
+        "",
+        f"> {TOPIC_GLOSS[topic]}（《增删卜易》各占章通行取用，核对见 research/liuyao_tables.md §7）。"
+        "以下只陈述用神之规则事实，不做吉凶总断。",
+        "",
+    ]
+    targets = TOPIC_YONGSHEN[topic]
+    if targets == ("世应",):
+        for tag, idx in (("世爻", chart.shi), ("应爻", chart.ying)):
+            ln = chart.lines[idx - 1]
+            facts = "；".join(_line_facts(chart, ln))
+            L.append(f"- {tag}（第{idx}爻，{ln.gan_zhi} {ln.liu_qin} {ln.liu_shen}）："
+                     f"{facts or '安静无特殊关系'}。")
+    else:
+        for qin in targets:
+            hits = [ln for ln in chart.lines if ln.liu_qin == qin]
+            if not hits:
+                L.append(f"- 用神{qin}：卦中不现（伏神另详，本模块不推伏神）。")
+                continue
+            for ln in hits:
+                facts = "；".join(_line_facts(chart, ln))
+                L.append(f"- 用神{qin}（第{ln.no}爻，{ln.gan_zhi} {ln.liu_shen}）："
+                         f"{facts or '安静无特殊关系'}。")
+    L.append("")
+    return "\n".join(L)
+
+
+__all__ = ["duanyu", "topic_focus", "TOPIC_YONGSHEN", "TOPIC_GLOSS"]

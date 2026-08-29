@@ -18,6 +18,7 @@
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from ..config import FortuneConfig
@@ -79,6 +80,7 @@ class ZiweiChart:
     leap_month_mode: str
     patterns: list[str] = field(default_factory=list)   # 格局（iztro 64 格局库）
     notes: list[str] = field(default_factory=list)
+    interpret: bool = False     # 是否附检索式解读速览（config.ziwei_interpret）
 
     def markdown(self) -> str:
         sihua_txt = "、".join(f"{n}化{m}" for n, m in self.sihua)
@@ -110,6 +112,12 @@ class ZiweiChart:
         lines.append("- 亮度符号：庙旺得利平不陷（iztro 标准）。四化标注：禄权科忌。")
         if self.patterns:
             lines.append(f"- 格局（iztro 64 格局库，[破格]=被化忌/煞曜破坏）：{'；'.join(self.patterns)}")
+        review = pattern_review(self)
+        if review:
+            lines.append("- 格局复核（展示性核对，判定以 iztro 引擎为准）：")
+            lines += [f"  - {r}" for r in review]
+        if self.interpret:
+            lines += interpret_glance(self)
         for n in self.notes:
             lines.append(f"- {n}")
         return "\n".join(lines)
@@ -238,4 +246,67 @@ def build(nb: NormalizedBirth, gender: str, config: FortuneConfig) -> ZiweiChart
         leap_month_mode=config.ziwei_leap_month,
         patterns=patterns,
         notes=notes,
+        interpret=config.ziwei_interpret,
     )
+
+
+def pattern_review(zc: "ZiweiChart") -> list[str]:
+    """格局只读复核（展示性核对，不改变引擎判定）。
+
+    把格局字符串中的星曜与盘面实际落宫对照：标称宫与实际落宫不同时如实列出；
+    [破格] 时列出盘面化忌星所在，作为「提示性可能破格因」（非引擎结论）。
+    """
+    star_palace: dict[str, list[str]] = {}
+    for p in zc.palaces:
+        for name, _b, _m in p.major:
+            star_palace.setdefault(name, []).append(p.name)
+    ji = [(n, p.name) for p in zc.palaces for n, _b, m in p.major if m == "忌"]
+
+    out = []
+    for pat in zc.patterns:
+        body = pat.replace("[破格]", "")
+        broken = "[破格]" in pat
+        name_part, sep, stars_part = body.partition("：")
+        m = re.fullmatch(r"(.*)（(.*)）", name_part.strip())
+        pname, palace = (m.group(1), m.group(2)) if m else (name_part.strip(), "")
+        stars = [s.strip() for s in stars_part.split("、") if s.strip()] if sep else []
+        locs = []
+        for s in stars:
+            where = "、".join(star_palace.get(s, ["盘面未见"]))
+            locs.append(f"{s}→{where}")
+        note = f"「{pname}」" + (f"（标称宫：{palace}）" if palace else "")
+        note += f"；星曜实际所在：{'；'.join(locs)}" if locs else ""
+        if broken:
+            if ji:
+                note += "；破格提示：盘面化忌为" + "、".join(f"{n}（{p}）" for n, p in ji) \
+                        + "（提示性，非引擎结论）"
+            else:
+                note += "；破格提示：盘面无生年化忌（破格或由煞曜所致，提示性）"
+        out.append(note)
+    return out
+
+
+def interpret_glance(zc: "ZiweiChart") -> list[str]:
+    """解读速览（检索式）：只重组本盘已算出的结构化事实，不添加语义推断。
+
+    主星/四化/大限等全部来自引擎输出；词条释义待 research/ziwei_glossary.md
+    核验后另行补充（见 docs/修复与改进计划.md I3）。
+    """
+    lines = ["- 解读速览（检索式：由本盘结构化事实整理，非推断；逐项来自引擎输出）"]
+    ming = zc.palaces[zc.ming_index]
+    ming_stars = ming.star_list()
+    lines.append(
+        f"  - 命宫{ming.gan_zhi}"
+        f"{'（身宫同宫）' if ming.is_shen else ''}："
+        f"主星 {'、'.join(ming_stars) if ming_stars else '空宫（以三方四正与对宫借星论，属通行看法，本行仅陈述盘面事实）'}"
+        f"；大限 {ming.da_xian}")
+    if not ming.is_shen:
+        shen = next((p for p in zc.palaces if p.is_shen), None)
+        if shen:
+            lines.append(f"  - 身宫{shen.gan_zhi}：主星 {'、'.join(shen.star_list()) or '空宫'}；大限 {shen.da_xian}")
+    sihua_pal = [f"{n}化{m}→{p.name}" for p in zc.palaces for n, _b, m in p.major if m]
+    if sihua_pal:
+        lines.append("  - 生年四化落宫：" + "；".join(sihua_pal))
+    lines.append(f"  - 五行局 {zc.five_elements_class}；命主 {zc.ming_zhu}；身主 {zc.shen_zhu}"
+                 "（命主/身主名目释义待词条核验后补充）")
+    return lines

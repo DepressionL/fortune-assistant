@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from ..bazi import ditiansui as hz_mod
+from ..bazi import liunian as ln_mod
 from ..bazi import relation, shensha, strength, yongshen
 from ..bazi.chart import BaziChart
 from ..config import FortuneConfig
@@ -92,6 +93,14 @@ def bazi_markdown(chart: BaziChart, config: FortuneConfig,
     lines.append(str(st))
     lines.append("```")
     lines.append("")
+    if config.show_strength_detail:
+        lines.append("<details><summary>旺衰计分明细（逐柱逐藏干得分，供人工复核；权重见 fortune/bazi/strength.py 模块注释）</summary>")
+        lines.append("")
+        lines.append("```")
+        lines += list(st.detail)
+        lines.append("```")
+        lines.append("</details>")
+        lines.append("")
 
     # 用神（单流派或多流派对比）
     school_list = schools or [config.yongshen_school]
@@ -110,41 +119,73 @@ def bazi_markdown(chart: BaziChart, config: FortuneConfig,
         lines.append("")
         for s in school_list:
             ys = yongshen.compute_yongshen(chart, s)
+            text = str(ys)
+            # 多流派时去掉每条结论自带的重复免责声明，统一在节末声明一次
+            text = text.replace(f"  ⚠ {ys.caveat}\n", "")
             lines.append(f"**流派：{s}**")
             lines.append("")
             lines.append("```")
-            lines.append(str(ys))
+            lines.append(text)
             lines.append("```")
             lines.append("")
+        lines.append("> ⚠ 用神推断为流派相关的经验规则，非确定性结论；不同流派结论可能相互矛盾，仅供参考研究。")
+        lines.append("")
 
-    # 何知章速览（《滴天髓》六亲论，规则映射）
-    lines.append("### 何知章速览（《滴天髓》六亲论，规则映射）")
-    lines.append("")
-    lines.append("> 8 句原文逐字出自《滴天髓》何知章（本仓 epub 底本，与维基文库《滴天髓阐微》"
-                 "互校；「财贫神反不真」两底本俱同，通行排印本多作「财神反不真」）。"
-                 "规则映射为经验性简化（fortune/bazi/ditiansui.py），仅作速览参考。")
-    lines.append("")
-    hits = hz_mod.hezhi(chart, st)
-    matched = [h for h in hits if h.matched]
-    for h in matched:
-        lines.append(f"- 「{h.line}」——命中：{h.reason}")
-    if not matched:
-        lines.append("- 8 句无一命中（以规则映射为准，仅参考）。")
-    lines.append("")
+    # 何知章速览（《滴天髓》六亲论，规则映射；默认成对呈现，legacy 为旧逐句格式）
+    hits = hz_mod.hezhi(chart, st, config.hezhi_thresholds)
+    if config.hezhi_legacy:
+        lines.append("### 何知章速览（《滴天髓》六亲论，规则映射）")
+        lines.append("")
+        lines.append("> 8 句原文逐字出自《滴天髓》何知章（本仓 epub 底本，与维基文库《滴天髓阐微》"
+                     "互校；「财贫神反不真」两底本俱同，通行排印本多作「财神反不真」）。"
+                     "规则映射为经验性简化（fortune/bazi/ditiansui.py），仅作速览参考。")
+        lines.append("")
+        matched = [h for h in hits if h.matched]
+        for h in matched:
+            lines.append(f"- 「{h.line}」——命中：{h.reason}")
+        if not matched:
+            lines.append("- 8 句无一命中（以规则映射为准，仅参考）。")
+        lines.append("")
+    else:
+        lines.append("### 何知章条件核查（4 维成对呈现，非吉凶总断）")
+        lines.append("")
+        lines.append("> 8 句原文逐字出自《滴天髓》何知章（本仓 epub 底本，与维基文库《滴天髓阐微》"
+                     "互校；「财贫神反不真」两底本俱同，通行排印本多作「财神反不真」）。"
+                     "规则映射为经验性简化（fortune/bazi/ditiansui.py），仅作速览参考；"
+                     "同维度两句为强弱两面，成对展示各自条件与依据，阈值见 research/hezhi_rules.md。")
+        lines.append("")
+        for pair in hz_mod.hezhi_pairs(hits):
+            lines.append(f"**{pair['dim']}**")
+            lines.append("")
+            rows = [[f"{it['line']}（{'命中' if it['matched'] else '未命中'}）", it["reason"]]
+                    for it in pair["items"]]
+            lines.append(_table(["条件", "依据（得分/门槛）"], rows))
+            lines.append("")
 
-    # 何知章速览·大运流年
-    lines.append("### 何知章速览·大运流年（规则映射，岁运干支并入原局计分）")
+    # 何知章速览·大运流年（默认只报变化；legacy 输出全量表）
+    lines.append("### 何知章·大运流年（规则映射，岁运干支并入原局计分）")
     lines.append("")
     lines.append("> 逐大运（及大运内逐年）把岁运干支并入原局、重算旺衰与 8 句命中"
                  "（同一规则引擎）；岁运十神按日主起算，计分沿用原局月令状态（经验简化）。"
-                 "仅列命中句与变化。")
+                 "默认只列相对原局有变化者；全量数据见结构化输出。")
     lines.append("")
-    dayun_rows, liunian_diffs = hz_mod.hezhi_suiyun(chart, st)
-    lines.append(_table(["大运", "干支", "命中句", "相对原局"],
-                        [[str(r["index"]), r["gan_zhi"],
-                          "、".join(r["matched"]) or "—", r["delta"]]
-                         for r in dayun_rows]))
-    lines.append("")
+    dayun_rows, liunian_diffs = hz_mod.hezhi_suiyun(chart, st, config.hezhi_thresholds)
+    if config.hezhi_legacy:
+        lines.append(_table(["大运", "干支", "命中句", "相对原局"],
+                            [[str(r["index"]), r["gan_zhi"],
+                              "、".join(r["matched"]) or "—", r["delta"]]
+                             for r in dayun_rows]))
+        lines.append("")
+    else:
+        changed = [r for r in dayun_rows if r["delta"] != "同原局"]
+        if changed:
+            lines.append(_table(["大运", "干支", "命中句", "相对原局"],
+                                [[str(r["index"]), r["gan_zhi"],
+                                  "、".join(r["matched"]) or "—", r["delta"]]
+                                 for r in changed]))
+        else:
+            lines.append("- 各步大运命中集与原局一致（无跨阈值变化）。")
+        lines.append("")
     if liunian_diffs:
         lines.append(f"流年变例（相对该步大运新增命中，最多列 10 条，共 {len(liunian_diffs)} 条）：")
         for d in liunian_diffs[:10]:
@@ -155,7 +196,34 @@ def bazi_markdown(chart: BaziChart, config: FortuneConfig,
     else:
         lines.append("流年变例：各流年命中集均与该步大运相同。")
     lines.append("")
+
+    # 大运流年速览（确定性关系事实，见 fortune/bazi/liunian.py）
+    if config.liunian_years > 0:
+        lines += liunian_section(chart, config)
     return "\n".join(lines)
+
+
+def liunian_section(chart: BaziChart, config: FortuneConfig) -> list[str]:
+    """大运流年速览：自锚年起 N 年，每年干支/十神/纳音 + 与原局、大运的确定性关系。
+
+    锚年默认取排盘时刻当前年（与六爻占日同为时间敏感项）；测试可用
+    config.liunian_anchor_year 固定锚年保证确定性。只输出关系事实，不断吉凶。
+    """
+    import datetime as _dt
+
+    anchor = config.liunian_anchor_year or _dt.date.today().year
+    rows = []
+    for y in range(anchor, anchor + config.liunian_years):
+        r = ln_mod.compute(chart, y)
+        rows.append([str(r.year), r.gan_zhi, r.shi_shen, r.na_yin,
+                     r.dayun or "—", "；".join(r.facts) or "—"])
+    lines = [
+        f"### 大运流年速览（自 {anchor} 年起 {config.liunian_years} 年；确定性关系事实，不断吉凶）",
+        "",
+    ]
+    lines.append(_table(["年份", "干支", "流年干十神", "纳音", "所在大运", "与原局/大运关系"], rows))
+    lines.append("")
+    return lines
 
 
 def full_report(birth: BirthInfo, config: FortuneConfig,

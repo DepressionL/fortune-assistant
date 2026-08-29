@@ -72,6 +72,7 @@ class MeiHuaResult:
     yong_gua: str            # 用卦（动爻所在卦）
     relation: str            # 用→体 五行关系：生/克/比和/泄(体生用)/耗(体克用)
     verdict: str             # 简要吉凶断（体用生克通行断法）
+    caliber: str = ""        # 时辰口径声明（出生信息起卦时填写）
     #: 互卦/变卦的上下卦（供图形化界面直接绘制卦符）
     hu_upper: str = ""
     hu_lower: str = ""
@@ -82,13 +83,16 @@ class MeiHuaResult:
         return f"{GUA_YAO[self.upper]}{GUA_YAO[self.lower]}"
 
     def __str__(self) -> str:  # pragma: no cover - 展示用
-        return (
+        body = (
             f"{self.method}\n"
             f"  本卦 {self.ben_gua} {self.symbols()}  动爻第{self.moving_line}爻\n"
             f"  互卦 {self.hu_gua}   变卦 {self.bian_gua}\n"
             f"  体卦 {self.ti_gua}({GUA_WUXING[self.ti_gua]})  用卦 {self.yong_gua}"
             f"({GUA_WUXING[self.yong_gua]})  →  {self.relation}（{self.verdict}）"
         )
+        if self.caliber:
+            body += f"\n  {self.caliber}"
+        return body
 
 
 def _gua_name(lower_idx: int, upper_idx: int) -> str:
@@ -158,6 +162,24 @@ def by_time(lunar_year: int, lunar_month: int, lunar_day: int, hour: int) -> Mei
     mv = ((s + nh) % 6) or 6
     return _make(f"时间起卦（农历{lunar_year}年{lunar_month}月{lunar_day}日{hour}时）",
                  NUM_TO_IDX[down], NUM_TO_IDX[up], mv)
+
+
+def by_birth(birth: "BirthInfo", nb: "NormalizedBirth",
+             use_true_solar: bool = True) -> MeiHuaResult:
+    """出生信息时间起卦（农历月日 + 时支），并标注时辰口径。
+
+    :param use_true_solar: True=取真太阳时校正后钟点（与八字/紫微口径一致，主流）；
+        False=取钟表钟点（梅花传统按钟表起卦）。两口径结果不同时如实标注。
+    """
+    if use_true_solar and nb.true_solar_shift_min is not None:
+        hour = nb.solar_ymdhms[3]
+        caliber = f"时辰口径：真太阳时（校正 {nb.true_solar_shift_min:+.1f} 分，与八字/紫微一致）"
+    else:
+        hour = birth.hour
+        caliber = "时辰口径：钟表时支（未做真太阳时校正）"
+    res = by_time(nb.lunar_year, abs(nb.lunar_month), nb.lunar_day, hour)
+    res.caliber = caliber
+    return res
 
 
 def by_numbers(a: int, b: int, c: int | None = None) -> MeiHuaResult:

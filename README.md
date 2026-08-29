@@ -18,12 +18,14 @@
 | 模块 | 内容 | 数据来源/引擎 |
 |---|---|---|
 | 历法核心 | 公历↔农历、干支、节气精确时刻、真太阳时（经度差+均时差）、1986–1991 夏令时 | lunar-python（主）、astral（EoT）、sxtwl（交叉验证） |
-| 八字 | 四柱、藏干、十神、纳音、地势、旬空、胎元命宫身宫、大运起运、合冲刑害、神煞（18 项）、五行旺衰打分、用神（4 流派规则引擎） | lunar-python EightChar/Yun + 《三命通会》《渊海子平》核验表 |
-| 紫微斗数 | 十二宫、十四主星、辅星杂曜、四化、大限、命主身主、五行局；Markdown + SVG 盘面 | **x-iztro**（iztro v2.5.8 移植，716,314 条黄金用例） |
-| 六爻 | 起卦装卦：世应、纳甲、六亲、六神、旬空、动变 | 《增删卜易》《卜筮正宗》核验表 |
+| 八字 | 四柱、藏干、十神、纳音、地势、旬空、胎元命宫身宫、大运起运、合冲刑害、神煞（18 项）、五行旺衰打分（含计分明细）、用神（5 流派规则引擎）、何知章条件核查（4 维成对）、大运流年速览 | lunar-python EightChar/Yun + 《三命通会》《渊海子平》核验表 |
+| 紫微斗数 | 十二宫、十四主星、辅星杂曜、四化、大限、命主身主、五行局、格局复核、检索式解读速览（默认关）；Markdown + SVG 盘面 | **x-iztro**（iztro v2.5.8 移植，716,314 条黄金用例） |
+| 六爻 | 起卦装卦：世应、纳甲、六亲、六神、旬空、动变；占问主题用神聚焦（求财/事业/婚恋/健康/考试/出行等）、--date 自动推月建日辰 | 《增删卜易》《卜筮正宗》核验表 |
 | 梅花易数 | 数字起卦/农历时间起卦：本卦互卦变卦、体用生克 | 邵雍《梅花易数》通行本 + 通行《周易》64 卦 |
 | 小六壬 | 月日时三数落宫 + 六宫断辞 | 通行本多源交叉核验 |
 | 称骨 | 年/月/日/时骨重 + 判词（通行男命版） | 通行本多源交叉核验（托名袁天罡） |
+| 工具联动 | BirthContext：跨工具共享历法事实上下文 + 一致性校验（`fortune context`） | 只共享历法事实，不共享吉凶结论 |
+| 综合分析 | `fortune comprehensive`：无 LLM 聚合——用神共识矩阵、分维度证据链、共识度、冲突清单 | 确定性规则引擎（同输入同输出），见 `docs/修复与改进计划.md` §4 |
 
 ## 安装与运行
 
@@ -43,16 +45,21 @@ fortune ziwei -y 1990 -m 6 -d 15 -H 13 -M 30 -g 男 --svg ziwei.svg
 fortune chenggu -y 1990 -m 6 -d 15 -H 13
 fortune xiaoliuren --month 5 --day 23 --hour-zhi 未
 fortune meihua 12 34
-fortune liuyao --backs 2,3,1,0,3,2 --month-zhi 午 --day-ganzhi 甲子
+fortune liuyao --backs 2,3,1,0,3,2 --date 2026-08-29 --topic 求财
 fortune solar-info -y 2024 -m 2 -d 10
+fortune context -y 1990 -m 6 -d 15 -H 13 -M 30 -g 男
+fortune comprehensive -y 1990 -m 6 -d 15 -H 13 -M 30 -g 男 --anchor-year 2026
 ```
 
 常用选项（八字）：`--lng 116.4`（出生地东经）、`--no-true-solar`（关闭真太阳时）、
-`--day-change 23|0`（换日时刻）、`--dst`（1986–1991 夏令时）、`--school wangshuai|tiaohou|tongguan|geju`、
-`--schools wangshuai,tiaohou`（多流派一次对比）、`--shensha-base day|year`、`--json`、`--md 报告.md`、`--svg 五行.svg`。
-六爻可用 `--random` 随机模拟三枚铜钱掷六次（真实掷币分布），并自动附带规则化断语
-（逐条出处见 `fortune/liuyao/duanyu.py`）；梅花自动附带卦辞爻辞
+`--day-change 23|0`（换日时刻）、`--dst`（1986–1991 夏令时）、`--school wangshuai|tiaohou|tongguan|geju|bingyao`、
+`--schools wangshuai,tiaohou`（多流派一次对比）、`--shensha-base day|year`、
+`--years N`/`--anchor-year YYYY`（流年速览年数与锚年）、`--hezhi-legacy`（何知章旧版格式）、
+`--json`、`--md 报告.md`、`--svg 五行.svg`。
+六爻可用 `--random` 随机模拟三枚铜钱掷六次（真实掷币分布），`--topic` 按占问主题输出用神聚焦，
+`--date YYYY-MM-DD` 自动推导月建日辰（节气口径）；梅花自动附带卦辞爻辞
 （通行本《周易》，阮刻《十三经注疏》本文字，见 `fortune/misc/zhouyi.py`）。
+紫微可用 `--interpret` 附检索式解读速览（无推断，默认关）。
 
 ## 争议项与默认口径（可配置）
 
@@ -66,7 +73,10 @@ fortune solar-info -y 2024 -m 2 -d 10
 | 天乙贵人 | 「甲戊庚牛羊」版 | 「庚辛逢虎马」别传（庚→寅午） | 未开放（默认主流） |
 | 羊刃 | 阴干无刃 | 少数派阴刃（帝旺位） | 未开放（默认主流） |
 | 月德 | 丙壬甲庚（《三命通会》小结「癸」为讹） | 含「癸」的讹本 | 未开放 |
-| 用神 | 旺衰平衡 | 调候/通关/格局 | `yongshen_school` |
+| 用神 | 旺衰平衡 | 调候/通关/格局/病药 | `yongshen_school` |
+| 何知章阈值 | 收紧默认值（判别力校准，见 `research/hezhi_rules.md`） | 自定义阈值 / 旧版逐句格式 | `hezhi_thresholds` / `hezhi_legacy` |
+| 紫微解读速览 | **关闭**（无解读层） | 开启检索式速览（无推断） | `ziwei_interpret` |
+| 称骨女命版 | 未收录（多源核验完成前**显式拒绝**） | — | `chenggu_gender` |
 | 紫微庚年四化 | **天同化忌**（中州派/iztro/现代主流） | 天相化忌（《紫微斗数全书》古法） | `ziwei_geng_sihua` |
 | 紫微闰月 | 按当月 | 十五分界（iztro 默认 fix_leap）；按下月不支持 | `ziwei_leap_month` |
 | 称骨判词 | 通行男命版 | 女命版（未收录，输入「女」时显式警告） | — |

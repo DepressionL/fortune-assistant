@@ -70,6 +70,34 @@ class FortuneConfig:
     #: 两派对老阴老阳恰好互换，务必在报告中注明所用约定。
     liuyao_coin_back: str = "yang"
 
+    # ---------- 何知章（《滴天髓》规则映射） ----------
+    #: 规则阈值覆盖（键见 bazi/ditiansui.HEZHI_DEFAULTS；推导与样本统计见
+    #: research/hezhi_rules.md。默认值已收紧，避免多数盘全命中）。
+    hezhi_thresholds: dict = field(default_factory=dict)
+
+    #: 是否输出旧版「逐句列表 + 全量岁运表」格式（默认 False=成对呈现 + 只报变化）。
+    hezhi_legacy: bool = False
+
+    # ---------- 输出细节 ----------
+    #: 报告中是否附旺衰计分明细（逐柱逐藏干得分，供人工复核；默认开）。
+    show_strength_detail: bool = True
+
+    #: 流年速览年数（自锚年起；0=关闭。该节随排盘时刻变化，
+    #: 测试可用 liunian_anchor_year 固定锚年以保持确定性）。
+    liunian_years: int = 10
+
+    #: 流年速览锚年（None=排盘时刻当前年）。
+    liunian_anchor_year: int | None = None
+
+    #: 紫微检索式解读速览（默认关；开启后追加「参考条目（检索式，非推断）」节）。
+    ziwei_interpret: bool = False
+
+    #: 称骨性别（女命判词未完成多源核验前仅支持 男，见 docs/修复与改进计划.md I4-e）。
+    chenggu_gender: str = "男"
+
+    #: 综合工具（comprehensive）流派投票权重（流派名→权重；缺省等权）。
+    comprehensive_weights: dict = field(default_factory=dict)
+
     # ---------- 输出 ----------
     #: 报告中是否附文献出处注记（默认开，便于核对硬编码表）。
     show_sources: bool = True
@@ -87,6 +115,13 @@ class FortuneConfig:
         assert self.ziwei_geng_sihua in ("tiantong", "tianxiang"), \
             "ziwei_geng_sihua 取值非法"
         assert self.liuyao_coin_back in ("yang", "yin"), 'liuyao_coin_back 只能为 "yang"/"yin"'
+        assert isinstance(self.hezhi_thresholds, dict), "hezhi_thresholds 须为字典"
+        assert isinstance(self.comprehensive_weights, dict), "comprehensive_weights 须为字典"
+        assert self.liunian_years >= 0, "liunian_years 须 ≥0"
+        assert self.liunian_anchor_year is None or 1600 <= self.liunian_anchor_year <= 2200, \
+            "liunian_anchor_year 须在 1600-2200 或为 None"
+        assert self.chenggu_gender == "男", \
+            "称骨女命判词尚未完成多源核验（docs/修复与改进计划.md I4-e），暂仅支持 男"
 
 
 DEFAULT_CONFIG = FortuneConfig()

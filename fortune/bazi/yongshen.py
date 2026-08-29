@@ -95,6 +95,21 @@ def wangshuai(chart: BaziChart, st: StrengthResult) -> YongshenResult:
 _MONTH_CN = {1: "正月", 2: "二月", 3: "三月", 4: "四月", 5: "五月", 6: "六月",
              7: "七月", 8: "八月", 9: "九月", 10: "十月", 11: "十一月", 12: "十二月"}
 
+#: 天干 → 五行（用于把《穷通宝鉴》喜用提炼 gan 映射为用神五行字段）
+_GAN_WUXING = {"甲": "木", "乙": "木", "丙": "火", "丁": "火", "戊": "土", "己": "土",
+               "庚": "金", "辛": "金", "壬": "水", "癸": "水"}
+
+
+def _clip(text: str, limit: int, source: str) -> str:
+    """按句读截断长引文（保持句子完整）并注明节选来源。"""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    cut = max(head.rfind("。"), head.rfind("；"), head.rfind("，"))
+    if cut > limit // 2:
+        head = head[:cut + 1]
+    return f"{head}……（节选，全文见 {source}）"
+
 
 def _tiaohou_wuxing(mz: str) -> tuple[list[str], list[str]]:
     """原简化规则：由月令寒暖燥湿给五行级调候提示（保留兼容）。"""
@@ -116,7 +131,11 @@ def _tiaohou_wuxing(mz: str) -> tuple[list[str], list[str]]:
 
 
 def tiaohou(chart: BaziChart) -> YongshenResult:
-    """调候（《穷通宝鉴》逐月原文）：按（日主, 月令）查逐字表，附喜用提炼与五行提示。"""
+    """调候（《穷通宝鉴》逐月原文）：按（日主, 月令）查逐字表，附喜用提炼与五行提示。
+
+    用神五行字段由「喜用提炼」的天干映射而来（与所引原文一致）；
+    原文无明确取用句的月份，退回月令寒暖简化规则并明确标注「非原文结论」。
+    """
     from .tiaohou_text import TIAOHOU_TEXT, XTIQUAN
 
     mz = chart.pillar("月柱").zhi
@@ -125,20 +144,28 @@ def tiaohou(chart: BaziChart) -> YongshenResult:
     text = TIAOHOU_TEXT.get(day, {}).get(mo, "")
     tiquan = XTIQUAN.get(day, {}).get(mo, {})
     y = YongshenResult(school="tiaohou（调候，《穷通宝鉴》逐月原文）")
-    y.yong_wuxing, wx_conclusions = _tiaohou_wuxing(mz)
-    lines = [
-        f"{_MONTH_CN[mo]}{day}日主（《穷通宝鉴》原文）："
-        f"{text[:120]}{'…' if len(text) > 120 else ''}",
-    ]
     gan = tiquan.get("gan", "")
     quote = tiquan.get("quote", "")
+    lines = [
+        f"{_MONTH_CN[mo]}{day}日主（《穷通宝鉴》原文）："
+        f"{_clip(text, 120, 'fortune/bazi/tiaohou_text.py')}",
+    ]
     if gan:
+        y.yong_wuxing = list(dict.fromkeys(_GAN_WUXING[g] for g in gan))
         lines.append(f"喜用提炼（规则抽取自原文，仅供参考）：{'、'.join(gan)}"
-                     + (f"（原文：「{quote[:60]}」）" if quote else ""))
+                     f"（用神五行：{'、'.join(y.yong_wuxing)}）"
+                     + (f"（原文：「{_clip(quote, 60, 'fortune/bazi/tiaohou_text.py')}」）"
+                        if quote else ""))
     else:
+        # 原文无明确取用句：字段退回月令寒暖简化规则，并明确标注非原文结论
+        y.yong_wuxing, wx_conclusions = _tiaohou_wuxing(mz)
         lines.append("喜用提炼：原文无明确取用句（以原文为准）")
+        lines.append("（该月原文无明确取用句，以下为月令寒暖简化提示，非原文结论，仅供参考）")
+        lines += wx_conclusions
     lines.append("出处：《穷通宝鉴》维基文库本（research/fetched/qiongbao.txt，程序化提取、繁转简）")
-    lines += [f"调候五行提示（简化规则）：{c}" for c in wx_conclusions]
+    if "噼" in text + quote:
+        lines.append("校注：底本此处「噼」当为「劈」（同书七月丁火段作「劈」，"
+                     "通行排印本作「劈」），本报告如实保留底本原字。")
     from .ditiansui_text import QUOTES as DTQ
     lines.append(f"《滴天髓》寒暖/燥湿（调候总纲）：「{DTQ['寒暖']}」「{DTQ['燥湿']}」"
                  "（底本「品泯」通行排印本多作「品汇」）")
@@ -176,65 +203,104 @@ def tongguan(chart: BaziChart, st: StrengthResult) -> YongshenResult:
 
 
 def geju(chart: BaziChart) -> YongshenResult:
-    """格局（《子平真诠》原文+徐乐吾评注驱动）：月支本气/透干取格 + 格局喜忌 + 原文引文。"""
+    """格局（《子平真诠》原文+徐乐吾评注驱动）：羊刃/建禄/月劫三分支 + 六正格。
+
+    比肩/劫财缺口修复（docs/修复与改进计划.md F2）：
+    - 羊刃格：阳干月支为刃地（甲卯/丙午/戊午/庚酉/壬子），宜官杀制刃（论阳刃）；
+    - 建禄格：月支为日主禄地，宜财官（论建禄月劫）；
+    - 月劫格：月支藏干之比劫透天干（月支非禄/刃地），宜财官（与建禄同格）。
+    """
     from .ziping_text import ZIPING
 
     y = YongshenResult(school="geju（格局，《子平真诠》原文+徐乐吾评注）")
     mz = chart.pillar("月柱").zhi
     day = chart.day_master
     day_wx = LunarUtil.WU_XING_GAN[day]
+    cai = KE[day_wx]
+    guan = next(w for w in WUXING_ORDER if KE[w] == day_wx)
 
-    # 透干者定格：月支藏干中透出天干（年/月/时干）者
+    def _cite(chapter: str | None) -> None:
+        if chapter and chapter in ZIPING:
+            y.conclusions.append(
+                f"《子平真诠》{chapter}（沈孝瞻原著、徐乐吾评注合刊本）："
+                f"{_clip(ZIPING[chapter], 100, 'fortune/bazi/ziping_text.py')}")
+
+    # 禄地与阳干刃地表（《子平真诠》论建禄月劫 / 论阳刃）
+    _LU = {"甲": "寅", "乙": "卯", "丙": "巳", "丁": "午", "戊": "巳", "己": "午",
+           "庚": "申", "辛": "酉", "壬": "亥", "癸": "子"}
+    _REN = {"甲": "卯", "丙": "午", "戊": "午", "庚": "酉", "壬": "子"}
+
+    # 1) 羊刃格（先判：阳干刃地与阴干禄地同支，如卯/午/酉/子）
+    if mz == _REN.get(day):
+        y.conclusions = [
+            f"月令{mz}为日主{day}之羊刃，羊刃格（《子平真诠》论阳刃："
+            "禄前一位为刃，刃宜伏制，官煞皆宜，财印相随，尤为贵显）",
+            "格局喜忌：刃宜官杀制之；忌刃旺无制",
+        ]
+        y.yong_wuxing = [guan]
+        _cite("论阳刃")
+        return y
+
+    # 2) 建禄格
+    if mz == _LU.get(day):
+        y.conclusions = [
+            f"月令{mz}为日主{day}之禄地，建禄格（《子平真诠》：建禄与月劫可同一格，"
+            "禄即是劫，皆以透干支，别取财官煞食为用）",
+            "格局喜忌：宜财官（另取财官煞食用神）",
+        ]
+        y.yong_wuxing = [cai, guan]
+        _cite("论建禄月劫")
+        return y
+
+    # 3) 透干取格：月支藏干中透出天干者
     hide = chart.pillar("月柱").hide_gan
-    shown = [g for g in chart.gans() if g in hide and g != chart.pillar("月柱").gan or
-             (g == chart.pillar("月柱").gan and g in hide)]
-    # 简化：月支本气或透出的藏干
-    ge = None
-    for g in [chart.pillar("月柱").gan] + shown:
-        if g in hide:
-            ge = g
-            break
-    if ge is None:
+    yue_gan = chart.pillar("月柱").gan
+    shown = [g for g in chart.gans() if g in hide]      # 天干中透出的月支藏干（含月干）
+    if yue_gan in hide:
+        ge = yue_gan
+    elif shown:
+        ge = shown[0]
+    else:
         ge = hide[0]
-    ge_wx = LunarUtil.WU_XING_GAN[ge]
     shi = LunarUtil.SHI_SHEN[day + ge]  # 日主+定格干 → 十神
 
-    # 十神 → 《子平真诠》章名（合刊本；杂气/建禄另归）
+    # 4) 月劫格：定格之比劫透干（月支非禄/刃地）
+    if shi in ("比肩", "劫财"):
+        y.conclusions = [
+            f"月令{mz}藏干{hide}，{ge}（{'、'.join(shown)}透）为日主{day}之{shi}，"
+            "月劫格（《子平真诠》：建禄与月劫可同一格，皆以透干支，别取财官煞食为用）",
+            "格局喜忌：宜财官（透财官煞食者别取为用）",
+        ]
+        y.yong_wuxing = [cai, guan]
+        _cite("论建禄月劫")
+        return y
+
+    # 5) 六正格（正官/七杀/正财/偏财/正印/偏印/食神/伤官）
     _SHI_CHAPTER = {
         "正官": "论正官", "七杀": "论偏官", "偏官": "论偏官",
         "正财": "论财", "偏财": "论财",
         "正印": "论印绶", "偏印": "论印绶",
         "食神": "论食神", "伤官": "论伤官",
-        "比肩": "论建禄月劫", "劫财": "论建禄月劫",
     }
-
-    if mz in ("寅", "申", "巳", "亥") and ge == chart.pillar("月柱").gan and ge_wx == day_wx:
-        y.conclusions = [f"月令{mz}为日主禄地，建禄格（月刃格另论）；喜财官（《子平真诠》）"]
-        y.yong_wuxing = [KE[day_wx], next(w for w in WUXING_ORDER if KE[w] == day_wx)]
-        chapter = "论建禄月劫"
-    else:
-        rules = {
-            "正官": ("喜财印相随", [KE[day_wx], next(w for w in WUXING_ORDER if SHENG[w] == day_wx)]),
-            "七杀": ("杀宜制化：食神制杀或印化", [SHENG[day_wx], next(w for w in WUXING_ORDER if SHENG[w] == day_wx)]),
-            "正财": ("喜食伤生财、官星护财", [SHENG[day_wx], next(w for w in WUXING_ORDER if KE[w] == day_wx)]),
-            "偏财": ("喜食伤生财", [SHENG[day_wx]]),
-            "正印": ("印喜官杀生印、比劫帮身", [next(w for w in WUXING_ORDER if KE[w] == day_wx), day_wx]),
-            "偏印": ("枭喜偏财制枭", [KE[day_wx]]),
-            "食神": ("食喜比劫生食、财星流通", [day_wx, KE[day_wx]]),
-            "伤官": ("伤官喜佩印或生财", [next(w for w in WUXING_ORDER if SHENG[w] == day_wx), KE[day_wx]]),
-        }
-        tip, wx = rules.get(shi, ("按格局定喜忌（详见《子平真诠》）", []))
-        y.conclusions = [
-            f"月令{mz}藏干{hide}，定格之干取{ge}，日主{day}见之为「{shi}」格",
-            f"格局喜忌：{tip}",
-        ]
-        y.yong_wuxing = wx
-        chapter = _SHI_CHAPTER.get(shi)
-    if chapter and chapter in ZIPING:
-        text = ZIPING[chapter]
-        y.conclusions.append(
-            f"《子平真诠》{chapter}（沈孝瞻原著、徐乐吾评注合刊本）："
-            f"{text[:100]}{'…' if len(text) > 100 else ''}")
+    yin_wx = next(w for w in WUXING_ORDER if SHENG[w] == day_wx)  # 印
+    shi_wx = SHENG[day_wx]                                        # 食伤
+    rules = {
+        "正官": ("喜财印相随", [cai, yin_wx]),
+        "七杀": ("杀宜制化：食神制杀或印化", [shi_wx, yin_wx]),
+        "正财": ("喜食伤生财、官星护财", [shi_wx, guan]),
+        "偏财": ("喜食伤生财", [shi_wx]),
+        "正印": ("印喜官杀生印、比劫帮身", [guan, day_wx]),
+        "偏印": ("枭喜偏财制枭", [cai]),
+        "食神": ("食喜比劫生食、财星流通", [day_wx, cai]),
+        "伤官": ("伤官喜佩印或生财", [yin_wx, cai]),
+    }
+    tip, wx = rules.get(shi, ("按格局定喜忌（详见《子平真诠》）", []))
+    y.conclusions = [
+        f"月令{mz}藏干{hide}，定格之干取{ge}，日主{day}见之为「{shi}」格",
+        f"格局喜忌：{tip}",
+    ]
+    y.yong_wuxing = wx
+    _cite(_SHI_CHAPTER.get(shi))
     return y
 
 

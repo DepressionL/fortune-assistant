@@ -30,7 +30,9 @@ from .bazi import shensha as shensha_mod
 from .bazi import strength as strength_mod
 from .bazi import yongshen as yongshen_mod
 from .bazi.chart import build as build_bazi
+from .bazi import liunian as liunian_mod
 from .config import FortuneConfig
+from .core import context as ctx_mod
 from .core.calendar import normalize
 from .core.model import BirthInfo
 from .liuyao import ZHI, duanyu as liuyao_duanyu
@@ -131,7 +133,12 @@ def _bazi_meta(chart, config, schools: list[str] | None = None) -> dict:
     school_list = schools or [config.yongshen_school]
     st = strength_mod.compute(chart)
     ys = yongshen_mod.compute_yongshen(chart, school_list[0])
-    dayun_rows, liunian_diffs = ditiansui_mod.hezhi_suiyun(chart, st)
+    th = config.hezhi_thresholds
+    dayun_rows, liunian_diffs = ditiansui_mod.hezhi_suiyun(chart, st, th)
+    hits = ditiansui_mod.hezhi(chart, st, th)
+    anchor = config.liunian_anchor_year or _dt.date.today().year
+    liunian_rows = [dataclasses.asdict(liunian_mod.compute(chart, y))
+                    for y in range(anchor, anchor + config.liunian_years)]
     return {
         "tool": "bazi",
         "chart": dataclasses.asdict(chart),
@@ -141,9 +148,13 @@ def _bazi_meta(chart, config, schools: list[str] | None = None) -> dict:
         "yongshen": dataclasses.asdict(ys),
         "yongshen_all": {s: dataclasses.asdict(yongshen_mod.compute_yongshen(chart, s))
                          for s in school_list},
-        "hezhi": [dataclasses.asdict(h) for h in ditiansui_mod.hezhi(chart, st)],
+        "hezhi": [dataclasses.asdict(h) for h in hits],
+        "hezhi_pairs": ditiansui_mod.hezhi_pairs(hits),
+        "hezhi_thresholds": {**ditiansui_mod.HEZHI_DEFAULTS, **th},
         "hezhi_dayun": dayun_rows,
         "hezhi_liunian": liunian_diffs[:20],
+        "liunian": liunian_rows,
+        "liunian_anchor": anchor,
     }
 
 
@@ -166,6 +177,11 @@ def bazi(
     schools: str | None = typer.Option(None, "--schools",
                                        help="逗号分隔多流派对比，如 wangshuai,tiaohou（覆盖 --school）"),
     shensha_base: str = typer.Option("day", "--shensha-base", help="神煞基准 day|year"),
+    years: int = typer.Option(10, "--years", help="大运流年速览年数（自锚年起；0=关闭）"),
+    anchor_year: int | None = typer.Option(None, "--anchor-year",
+                                           help="流年速览锚年（默认排盘时刻当前年）"),
+    hezhi_legacy: bool = typer.Option(False, "--hezhi-legacy",
+                                      help="何知章输出旧版逐句列表 + 全量岁运表格式"),
     as_json: bool = typer.Option(False, "--json", help="输出 JSON"),
     meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径（供 DSH UI）"),
     out_md: str | None = typer.Option(None, "--md", help="Markdown 报告输出路径"),
@@ -187,6 +203,9 @@ def bazi(
                                  true_solar, day_change_hour, is_dst, timezone)
     config.yongshen_school = school_list[0]
     config.shensha_base = shensha_base
+    config.liunian_years = years
+    config.liunian_anchor_year = anchor_year
+    config.hezhi_legacy = hezhi_legacy
     chart = build_bazi(nb, gender, config)
     if as_json:
         typer.echo(json.dumps(_bazi_meta(chart, config, school_list),
@@ -224,8 +243,8 @@ def chenggu(
     _validate_birth(year, month, day, hour, minute, gender, longitude, timezone)
     birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
                                  True, 23, False, timezone)
-    res = chenggu_mod.calc(nb.lunar_year_ganzhi, abs(nb.lunar_month), nb.lunar_day,
-                           nb.time_zhi)
+    config.chenggu_gender = gender
+    res = chenggu_mod.calc_from_birth(birth, nb)
     typer.echo(str(res))
     if gender == "女":
         typer.echo("⚠ 提示：通行女命版判词未收录，以上结果按男命版歌诀计算，仅供参考。")
@@ -337,17 +356,34 @@ def _echo_zhouyi(res) -> None:
 def liuyao(
     backs: str | None = typer.Option(None, "--backs",
                                      help="六次掷币「背」的个数（0-3），自下而上，逗号分隔；--random 时可省"),
-    month_zhi: str = typer.Option(..., "--month-zhi", help="月建地支"),
-    day_ganzhi: str = typer.Option(..., "--day-ganzhi", help="日辰干支，如 甲子"),
+    month_zhi: str = typer.Option("", "--month-zhi", help="月建地支（与 --date 二选一）"),
+    day_ganzhi: str = typer.Option("", "--day-ganzhi", help="日辰干支，如 甲子（与 --date 二选一）"),
+    date: str = typer.Option("", "--date", help="起卦日 YYYY-MM-DD（默认今天；自动推月建与日辰，节气口径）"),
+    topic: str = typer.Option("综合", "--topic",
+                              help="占问主题：求财/合伙/事业/官非/婚恋/健康/考试/文书/出行/综合"),
+    question: str = typer.Option("", "--question", help="占题自由文本（仅回显记录，不参与计算）"),
     coin_back: str = typer.Option("yang", "--coin-back", help="背=阳(yang,主流)|背=阴(yin)"),
     random: bool = typer.Option(False, "--random",
                                 help="随机模拟三枚铜钱掷六次（每枚独立 50% 出背，符合真实掷币分布）"),
     meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
 ):
-    """六爻起卦装卦（附规则化断语，逐条出处见 fortune/liuyao/duanyu.py）。"""
+    """六爻起卦装卦（附规则化断语与占问用神聚焦，逐条出处见 fortune/liuyao/duanyu.py）。"""
+    date_note = ""
+    if date:
+        try:
+            dy, dm, dd = (int(x) for x in date.split("-"))
+        except ValueError:
+            _fail(f"--date 须为 YYYY-MM-DD，得到 {date!r}")
+        _validate_birth(dy, dm, dd, 12, 0, "男", 120.0)
+        _, _, nb2 = _resolve(dy, dm, dd, 12, 0, "男", 120.0, False, 23, False, 8.0)
+        month_zhi = nb2.eight_char.getMonth()[-1]
+        day_ganzhi = nb2.eight_char.getDay()
+        date_note = f"（{date} 自动推导：月建{month_zhi}、日辰{day_ganzhi}，与节气口径一致）"
     if month_zhi not in ZHI:
-        _fail(f"月建地支 {month_zhi!r} 非法（须为子丑寅卯辰巳午未申酉戌亥）")
+        _fail(f"月建地支 {month_zhi!r} 非法（须为子丑寅卯辰巳午未申酉戌亥；或用 --date 自动推导）")
     _validate_ganzhi(day_ganzhi)
+    if topic not in liuyao_duanyu.TOPIC_YONGSHEN:
+        _fail(f"--topic 非法：{topic!r}（支持 {'/'.join(liuyao_duanyu.TOPIC_YONGSHEN)}）")
     if coin_back not in ("yang", "yin"):
         _fail(f"--coin-back 须为 yang/yin，得到 {coin_back!r}")
     if backs:
@@ -369,8 +405,15 @@ def liuyao(
     duanyu_text = liuyao_duanyu.duanyu(chart)
     typer.echo("")
     typer.echo(duanyu_text)
+    focus = liuyao_duanyu.topic_focus(chart, topic, question)
+    if focus:
+        typer.echo(focus)
+    typer.echo(f"占题：{topic}{'「' + question + '」' if question else ''}"
+               f"（起卦 {'--date ' + date if date else '手动指定月建日辰'}）{date_note}")
     _dump_meta(meta_json, {"tool": "liuyao", **dataclasses.asdict(chart),
-                           "backs": vals, "duanyu": duanyu_text})
+                           "backs": vals, "duanyu": duanyu_text,
+                           "topic": topic, "question": question,
+                           "date": date or None, "topic_focus": focus})
 
 
 @app.command()
@@ -392,6 +435,7 @@ def ziwei(
                                    help="庚年四化忌星 tiantong(主流)|tianxiang(古法)"),
     leap_mode: str = typer.Option("as_month", "--leap-mode",
                                   help="闰月口径 as_month(按当月)|mid_split(十五分界)"),
+    interpret: bool = typer.Option(False, "--interpret", help="附检索式解读速览（默认关，无推断）"),
     meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
     out_svg: str | None = typer.Option(None, "--svg", help="紫微盘 SVG 输出路径"),
 ):
@@ -401,6 +445,7 @@ def ziwei(
                                  true_solar, day_change_hour, is_dst, timezone)
     config.ziwei_geng_sihua = geng_sihua
     config.ziwei_leap_month = leap_mode
+    config.ziwei_interpret = interpret
     try:
         from .ziwei import chart as ziwei_chart
         zc = ziwei_chart.build(nb, gender, config)
@@ -410,7 +455,8 @@ def ziwei(
             with open(out_svg, "w", encoding="utf-8") as f:
                 f.write(svg)
             typer.echo(f"紫微盘已写入 {out_svg}")
-        _dump_meta(meta_json, {"tool": "ziwei", **dataclasses.asdict(zc)})
+        _dump_meta(meta_json, {"tool": "ziwei", **dataclasses.asdict(zc),
+                               "pattern_review": ziwei_chart.pattern_review(zc)})
     except ImportError as e:
         typer.echo(f"紫微模块不可用：{e}", err=True)
         raise typer.Exit(1)
@@ -482,6 +528,76 @@ def solar_info(
                     nb.eight_char.getDay(), nb.eight_char.getTime()],
         "jieqi": jq,
     })
+
+
+@app.command()
+def context(
+    year: int = typer.Option(..., "--year", "-y"),
+    month: int = typer.Option(..., "--month", "-m"),
+    day: int = typer.Option(..., "--day", "-d"),
+    hour: int = typer.Option(..., "--hour", "-H"),
+    minute: int = typer.Option(0, "--minute", "-M"),
+    gender: str = typer.Option("男", "--gender", "-g"),
+    longitude: float = typer.Option(120.0, "--lng"),
+    true_solar: bool = typer.Option(True, "--true-solar/--no-true-solar"),
+    day_change_hour: int = typer.Option(23, "--day-change"),
+    is_dst: bool = typer.Option(False, "--dst"),
+    timezone: float = typer.Option(8.0, "--timezone"),
+    meta_json: str | None = typer.Option(None, "--meta-json"),
+):
+    """生成 BirthContext：跨工具共享的历法事实上下文（只含历法事实，不含吉凶结论）。"""
+    _validate_birth(year, month, day, hour, minute, gender, longitude, timezone)
+    birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
+                                 true_solar, day_change_hour, is_dst, timezone)
+    data = ctx_mod.build(birth, config).asdict()
+    typer.echo(json.dumps(data, ensure_ascii=False, indent=1))
+    _dump_meta(meta_json, {"tool": "context", "context": data})
+
+
+@app.command()
+def comprehensive(
+    year: int = typer.Option(..., "--year", "-y"),
+    month: int = typer.Option(..., "--month", "-m"),
+    day: int = typer.Option(..., "--day", "-d"),
+    hour: int = typer.Option(..., "--hour", "-H"),
+    minute: int = typer.Option(0, "--minute", "-M"),
+    gender: str = typer.Option("男", "--gender", "-g"),
+    longitude: float = typer.Option(120.0, "--lng"),
+    true_solar: bool = typer.Option(True, "--true-solar/--no-true-solar"),
+    day_change_hour: int = typer.Option(23, "--day-change"),
+    is_dst: bool = typer.Option(False, "--dst", help="钟面时间是否为中国夏令时（1986-1991）"),
+    timezone: float = typer.Option(8.0, "--timezone"),
+    liuyao_backs: str | None = typer.Option(None, "--liuyao-backs",
+                                            help="六爻背数（0-3 × 6，自下而上，逗号分隔；缺省不占六爻）"),
+    liuyao_date: str = typer.Option("", "--liuyao-date", help="六爻起卦日 YYYY-MM-DD（默认今天）"),
+    liuyao_topic: str = typer.Option("综合", "--liuyao-topic", help="六爻占问主题"),
+    coin_back: str = typer.Option("yang", "--coin-back", help="铜钱约定 yang|yin"),
+    anchor_year: int | None = typer.Option(None, "--anchor-year", help="近运锚年（默认当前年）"),
+    meta_json: str | None = typer.Option(None, "--meta-json"),
+):
+    """综合分析（无 LLM 聚合：确定性规则引擎 + 已核验内容检索，见 docs/修复与改进计划.md §4）。"""
+    _validate_birth(year, month, day, hour, minute, gender, longitude, timezone)
+    birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
+                                 true_solar, day_change_hour, is_dst, timezone)
+    from .comprehensive import run as comp_run
+    lyao = None
+    if liuyao_backs:
+        try:
+            vals = [int(x) for x in liuyao_backs.split(",")]
+        except ValueError:
+            _fail("--liuyao-backs 需为 6 个 0-3 的整数，逗号分隔（自下而上）")
+        if len(vals) != 6 or any(not 0 <= v <= 3 for v in vals):
+            _fail(f"--liuyao-backs 需恰好 6 个 0-3 的整数，得到 {vals}")
+        lyao = {"backs": vals, "coin_back": coin_back,
+                "date": liuyao_date or _dt.date.today().strftime("%Y-%m-%d"),
+                "topic": liuyao_topic}
+    res = comp_run(birth, config, liuyao=lyao, anchor_year=anchor_year)
+    typer.echo(res.markdown())
+    _dump_meta(meta_json, {"tool": "comprehensive",
+                           "context": res.context, "matrix": res.matrix,
+                           "consensus": res.consensus,
+                           "conclusions": [dataclasses.asdict(c) for c in res.conclusions],
+                           "conflicts": res.conflicts, "notes": res.notes})
 
 
 def main() -> None:  # pragma: no cover

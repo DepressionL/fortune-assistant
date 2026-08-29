@@ -88,6 +88,7 @@ class XiaoLiuRenResult:
     month_palace: str   # 月宫
     day_palace: str     # 日宫
     palace: str         # 结果宫
+    caliber: str = ""   # 时辰口径声明（出生信息推算时填写）
 
     @property
     def info(self) -> dict:
@@ -103,13 +104,16 @@ class XiaoLiuRenResult:
     def __str__(self) -> str:  # pragma: no cover - 展示用
         i = self.info
         f, pos = self.finger
-        return (
+        body = (
             f"小六壬（农历{self.lunar_month}月{self.lunar_day}日 {self.hour_zhi}时）\n"
             f"  推演：{self.path()}\n"
             f"  结果宫：{self.palace}（{f}{pos}）  {i['吉凶']}\n"
             f"  五行{i['五行']} · {i['方位']} · {i['神煞']} · 主数{i['主数']}\n"
             f"  断语：{i['断语']}"
         )
+        if self.caliber:
+            body += f"\n  {self.caliber}"
+        return body
 
 
 def calc(lunar_month: int, lunar_day: int, hour_zhi: str) -> XiaoLiuRenResult:
@@ -130,3 +134,22 @@ def calc(lunar_month: int, lunar_day: int, hour_zhi: str) -> XiaoLiuRenResult:
         lunar_month=lunar_month, lunar_day=lunar_day, hour_zhi=hour_zhi,
         month_palace=PALACES[m], day_palace=PALACES[d], palace=PALACES[t],
     )
+
+
+def calc_from_birth(birth: "BirthInfo", nb: "NormalizedBirth",
+                    use_true_solar: bool = True) -> XiaoLiuRenResult:
+    """出生信息推算小六壬（农历月日 + 时支），并标注时辰口径。
+
+    注意：小六壬通行按钟表时支起数（本工具标准口径）；本入口提供
+    use_true_solar 选项以便与八字/紫微口径对齐比较，两口径结论均如实输出。
+    """
+    if use_true_solar and nb.true_solar_shift_min is not None:
+        hour = nb.solar_ymdhms[3]
+        caliber = f"时辰口径：真太阳时支（校正 {nb.true_solar_shift_min:+.1f} 分，与八字/紫微一致）"
+    else:
+        hour = birth.hour
+        caliber = "时辰口径：钟表时支（小六壬工具标准口径，未做真太阳时校正）"
+    hour_zhi = "子丑寅卯辰巳午未申酉戌亥"[((hour + 1) // 2) % 12]
+    res = calc(abs(nb.lunar_month), nb.lunar_day, hour_zhi)
+    res.caliber = caliber
+    return res

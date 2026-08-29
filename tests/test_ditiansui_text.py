@@ -130,10 +130,27 @@ def test_cli_hezhang_section():
     from fortune.cli import app
     r = CliRunner().invoke(app, ["bazi", "-y", "1990", "-m", "6", "-d", "15",
                                  "-H", "13", "--no-true-solar",
-                                 "--schools", "wangshuai,bingyao"])
+                                 "--schools", "wangshuai,bingyao",
+                                 "--anchor-year", "2026"])
     assert r.exit_code == 0, r.output
-    assert "何知章速览" in r.output
+    # 默认成对呈现 + 只报变化（改造后格式）
+    assert "何知章条件核查（4 维成对呈现，非吉凶总断）" in r.output
     assert "何知其人富？财气通门户。" in r.output
     assert "何知其人寿？性定元神厚" in r.output
-    assert "何知章速览·大运流年" in r.output
+    assert "何知章·大运流年" in r.output
     assert "丙戌" in r.output and "新增凶" in r.output
+    assert "大运流年速览" in r.output and "2026" in r.output
+
+
+def test_cli_hezhang_legacy():
+    from typer.testing import CliRunner
+    from fortune.cli import app
+    r = CliRunner().invoke(app, ["bazi", "-y", "1990", "-m", "6", "-d", "15",
+                                 "-H", "13", "--no-true-solar",
+                                 "--schools", "wangshuai,bingyao",
+                                 "--hezhi-legacy", "--years", "0"])
+    assert r.exit_code == 0, r.output
+    # legacy 格式保留：逐句列表 + 全量岁运表（对照研究用）
+    assert "何知章速览（《滴天髓》六亲论，规则映射）" in r.output
+    assert "命中：财气通门户之象" in r.output or "命中：" in r.output
+    assert "相对原局" in r.output and "同原局" in r.output
