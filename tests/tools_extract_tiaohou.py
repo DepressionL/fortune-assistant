@@ -38,14 +38,28 @@ def clean(s: str) -> str:
     return s.strip("，。；、：！？")
 
 
-def first_paragraph(text: str, start: int) -> str:
-    """从 start 起取到空行（或下个 ''' / === 标题 / 维基表格）为止的第一段。"""
+def first_paragraph(text: str, start: int, merge: bool = True) -> str:
+    """从 start 起取第一段；merge=True 且过短（<40 字）时并入下一段，总量 ≤200 字。"""
     end = len(text)
     for pat in ("\n\n", "'''", "\n===", "\n==", "\n{|", "{|"):
         j = text.find(pat, start)
         if j > start:
             end = min(end, j)
-    return clean(text[start:end])
+    body = clean(text[start:end])
+    if merge and len(body) < 40 and end < len(text):
+        k = end
+        while k < len(text) and text[k] in "\n ":
+            k += 1
+        if k < len(text):
+            end2 = len(text)
+            for pat in ("\n\n", "'''", "\n===", "\n==", "\n{|", "{|"):
+                j2 = text.find(pat, k)
+                if j2 > k:
+                    end2 = min(end2, j2)
+            nxt = clean(text[k:end2])
+            if nxt:
+                body = (body + nxt)[:200]
+    return body
 
 
 def parse_months(part: str) -> list[int]:
@@ -64,6 +78,38 @@ def parse_months(part: str) -> list[int]:
         elif ch == "L":
             nums.append(12)
     return nums
+
+
+#: 喜用提炼：取/用/先/次/须/耑/喜/得/后/看/以 后紧跟的天干（1-2 字），
+#: 命中前 3 字含 不/无/莫/勿/忌 的否定语境跳过；命中句作为引文锚点。
+_XIYONG_KW = re.compile(r"(专用|必用|取|用|先|次|须|耑|専|喜|得|后|看|以)"
+                        r"([甲乙丙丁戊己庚辛壬癸]{1,2})")
+_XIYONG_NEG = ("不", "无", "莫", "勿", "忌")
+
+
+def extract_xiyong(text: str) -> tuple[str, str]:
+    """逐月原文 → (喜用天干串, 命中原文句)。无明确取用句时返回空串。"""
+    gans: list[str] = []
+    quotes: list[str] = []
+    for m in _XIYONG_KW.finditer(text):
+        s = m.start()
+        ctx = text[max(0, s - 3):s]
+        if any(c in ctx for c in _XIYONG_NEG):
+            continue
+        for g in m.group(2):
+            if g not in gans and len(gans) < 4:
+                gans.append(g)
+        sent_start = text.rfind("。", 0, s) + 1
+        sent_end = text.find("。", s)
+        sent = text[sent_start:sent_end if sent_end > 0 else min(len(text), s + 40)]
+        if sent and sent not in quotes:
+            quotes.append(sent)
+    # 补充句式「X金次之」「X木次之」类（次要用神）
+    for m in re.finditer(r"([甲乙丙丁戊己庚辛壬癸])[金木水火土]?次之", text):
+        g = m.group(1)
+        if g not in gans and len(gans) < 4:
+            gans.append(g)
+    return "".join(gans), "。".join(quotes[:2])
 
 
 def extract() -> dict[str, dict[int, str]]:
@@ -89,7 +135,7 @@ def extract() -> dict[str, dict[int, str]]:
         for sm in season_pat.finditer(t):
             head = sm.group(0).strip("= \t")
             if head.endswith(stem + elem):
-                season_starts[head[:2]] = T2S.convert(first_paragraph(t, sm.end()))
+                season_starts[head[:2]] = T2S.convert(first_paragraph(t, sm.end(), merge=False))
         row: dict[int, str] = {}
         last_seen = ""
         for mo in range(1, 13):
@@ -128,8 +174,19 @@ def main() -> int:
             for mo in range(1, 13):
                 f.write(f"        {mo}: {json.dumps(data[stem][mo], ensure_ascii=False)},\n")
             f.write("    },\n")
+        f.write("}\n\n\n")
+        f.write("#: 逐月喜用提炼：由取/用/先/次/须/耑/喜/得/后/看/以 后随天干的规则抽取\n")
+        f.write("#: （否定语境排除），quote 为命中原文句（引文锚点）。规则透明、仅供参考，\n")
+        f.write("#: 以 TIAOHOU_TEXT 原文为准。\n")
+        f.write("XTIQUAN: dict[str, dict[int, dict[str, str]]] = {\n")
+        for stem in STEM_ELEM:
+            f.write(f'    "{stem}": {{\n')
+            for mo in range(1, 13):
+                gan, quote = extract_xiyong(data[stem][mo])
+                f.write(f"        {mo}: {json.dumps({'gan': gan, 'quote': quote}, ensure_ascii=False)},\n")
+            f.write("    },\n")
         f.write("}\n")
-    print(f"已生成 {OUT}（10 干 × 12 月）")
+    print(f"已生成 {OUT}（10 干 × 12 月 + 喜用提炼）")
     return 0
 
 

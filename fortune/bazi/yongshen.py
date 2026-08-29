@@ -105,20 +105,28 @@ def _tiaohou_wuxing(mz: str) -> tuple[list[str], list[str]]:
 
 
 def tiaohou(chart: BaziChart) -> YongshenResult:
-    """调候（《穷通宝鉴》逐月原文）：按（日主, 月令）查逐字表，附五行提示。"""
-    from .tiaohou_text import TIAOHOU_TEXT
+    """调候（《穷通宝鉴》逐月原文）：按（日主, 月令）查逐字表，附喜用提炼与五行提示。"""
+    from .tiaohou_text import TIAOHOU_TEXT, XTIQUAN
 
     mz = chart.pillar("月柱").zhi
     day = chart.day_master
     mo = "寅卯辰巳午未申酉戌亥子丑".index(mz) + 1
     text = TIAOHOU_TEXT.get(day, {}).get(mo, "")
+    tiquan = XTIQUAN.get(day, {}).get(mo, {})
     y = YongshenResult(school="tiaohou（调候，《穷通宝鉴》逐月原文）")
     y.yong_wuxing, wx_conclusions = _tiaohou_wuxing(mz)
     lines = [
         f"{_MONTH_CN[mo]}{day}日主（《穷通宝鉴》原文）："
         f"{text[:120]}{'…' if len(text) > 120 else ''}",
-        "出处：《穷通宝鉴》维基文库本（research/fetched/qiongbao.txt，程序化提取、繁转简）",
     ]
+    gan = tiquan.get("gan", "")
+    quote = tiquan.get("quote", "")
+    if gan:
+        lines.append(f"喜用提炼（规则抽取自原文，仅供参考）：{'、'.join(gan)}"
+                     + (f"（原文：「{quote[:60]}」）" if quote else ""))
+    else:
+        lines.append("喜用提炼：原文无明确取用句（以原文为准）")
+    lines.append("出处：《穷通宝鉴》维基文库本（research/fetched/qiongbao.txt，程序化提取、繁转简）")
     lines += [f"调候五行提示（简化规则）：{c}" for c in wx_conclusions]
     y.conclusions = lines
     return y

@@ -15,6 +15,8 @@
 | `zengshan_26.txt` | `增刪卜易/26` | 旬空章第二十六 |
 | `smtj_juan3.txt` | zh.wikisource.org `三命通會/卷三`（action=raw） | 《三命通会》卷三（神煞诸篇：驿马、金舆、三奇、学堂词馆、劫煞亡神、天罗地网、十恶大败等 23 篇），用于神煞起法核验 |
 | `qiongbao.txt` | zh.wikisource.org `窮通寶鑑`（action=raw） | 《穷通宝鉴》（《栏江网》）全文：十干逐月调候原文，用于 tiaohou 流派逐字表 |
+| `yuanhai.txt` | zh.wikisource.org `淵海子平`（action=raw） | 《渊海子平》全文（赋文类编本，73 篇；**无通行本卷一神煞起法篇**，见核验附记） |
+| `ctext_yh_search.html` | ctext.org 书名检索页 | ctext《渊海子平》资源定位（维基文字版需人工验证，未采用） |
 
 ## 核验结论摘要（详见各模块注释与 README「文献核验记录」）
 
@@ -30,7 +32,10 @@
   核对后并入 `fortune/bazi/shensha.py`（见各条目 note 出处）；「十恶大败」维基文库本
   作「乙丑」，按「禄入空亡」定义应为「己丑」，实现从通行本并已标注传本异文。
 - 《穷通宝鉴》：十干逐月调候原文程序化提取为 `fortune/bazi/tiaohou_text.py`，
-  tiaohou 流派输出逐字原文（回归测试锁定与原文子串一致）。
+  tiaohou 流派输出逐字原文（回归测试锁定与原文子串一致）；另生成 XTIQUAN
+  逐月喜用提炼（规则抽取 + 引文锚点）。
+- 《渊海子平》（维基文库赋文编本）：论阳刃与本仓羊刃表逐字一致；新增魁罡、日贵、
+  金神三项；该版无卷一神煞起法篇，如实记录（见 shensha_tables.md §28）。
 
 ## 已知数据源缺陷
 

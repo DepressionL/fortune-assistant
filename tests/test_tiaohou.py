@@ -70,6 +70,39 @@ def test_golden_cases():
     assert TIAOHOU_TEXT["丁"][6].endswith("（注：该月原书无独立论，参考前月原文）")
 
 
+def test_xtiquan_golden():
+    """喜用提炼黄金用例（规则抽取自原文）。"""
+    from fortune.bazi.tiaohou_text import XTIQUAN
+    assert XTIQUAN["甲"][1]["gan"] == "丙癸"
+    assert XTIQUAN["甲"][3]["gan"] == "庚壬"
+    assert set(XTIQUAN["甲"][4]["gan"]) >= {"癸", "丁"}      # 四月甲木先癸后丁（并入段含庚壬）
+    assert set(XTIQUAN["甲"][4]["gan"]) <= {"癸", "丁", "庚", "壬"}
+    assert XTIQUAN["丁"][2]["gan"] == "庚甲"
+    assert XTIQUAN["丁"][3]["gan"] == "甲庚"
+    assert XTIQUAN["丁"][12]["gan"] == "庚甲"
+    assert set(XTIQUAN["丁"][5]["gan"]) == {"庚", "壬"}
+    assert set(XTIQUAN["辛"][5]["gan"]) == {"己", "壬"}
+    assert set(XTIQUAN["癸"][2]["gan"]) == {"庚", "辛"}
+    assert set(XTIQUAN["庚"][1]["gan"]) == {"丙", "甲"}
+    assert XTIQUAN["甲"][2]["gan"] == ""            # 无明确取用句 → 回退
+    # 引文锚点：每句必须逐字存在于当月原文中（多句引文逐句校验）
+    for stem in XTIQUAN:
+        for mo in range(1, 13):
+            q = XTIQUAN[stem][mo]["quote"]
+            for sent in q.split("。"):
+                if sent:
+                    assert strip_all(sent) in strip_all(TIAOHOU_TEXT[stem][mo]), (stem, mo, sent)
+
+
+def test_xtiquan_structure():
+    from fortune.bazi.tiaohou_text import XTIQUAN
+    assert set(XTIQUAN) == set("甲乙丙丁戊己庚辛壬癸")
+    for stem in XTIQUAN:
+        assert len(XTIQUAN[stem]) == 12
+        for mo in range(1, 13):
+            assert set(XTIQUAN[stem][mo]) == {"gan", "quote"}
+
+
 def test_yongshen_tiaohou_uses_text():
     from fortune.bazi.chart import build as build_bazi
     from fortune.bazi.yongshen import compute_yongshen
@@ -85,4 +118,5 @@ def test_yongshen_tiaohou_uses_text():
     out = str(r)
     assert r.school.startswith("tiaohou")
     assert "《穷通宝鉴》原文" in out
+    assert "喜用提炼（规则抽取自原文" in out
     assert "维基文库" in out
