@@ -10,17 +10,22 @@ epub 底本，与维基文库《滴天髓阐微》互校）。每条映射是一
 """
 from __future__ import annotations
 
+import dataclasses as _dc
+
 from dataclasses import dataclass
 
 from lunar_python.util import LunarUtil
 
-from .chart import BaziChart
+from .chart import BaziChart, Pillar
 from .ditiansui_text import HZ_LINES
 from .strength import KE, SHENG, StrengthResult, WUXING_ORDER
 
 CAI = ("正财", "偏财")
 GUAN = ("正官", "七杀")
 YIN = ("正印", "偏印")
+
+#: 何知章 8 句典籍顺序（排序用）
+HZ_ORDER = ["富", "贵", "贫", "贱", "吉", "凶", "寿", "夭"]
 
 
 @dataclass
@@ -62,12 +67,13 @@ def hezhi(chart: BaziChart, st: StrengthResult) -> list[HZHit]:
 
     hits: list[HZHit] = []
 
-    # 富：财气通门户 —— 财星透干，或月/日支藏财（简化「门户」为天干与月日支）
-    if cai_tou or any(p in ("月柱", "日柱") for p, _ in cai_cang):
+    # 富：财气通门户 —— 财星透干，或月/日支（岁运并入时含大运/流年支）藏财
+    menhu = ("月柱", "日柱", "大运", "流年")
+    if cai_tou or any(p in menhu for p, _ in cai_cang):
         detail = f"财星{'、'.join(cai_tou) + '透干' if cai_tou else ''}" \
-                 + (f"{'；' if cai_tou else ''}月/日支藏财"
-                    f"{'、'.join(g for p, g in cai_cang if p in ('月柱', '日柱'))}"
-                    if any(p in ("月柱", "日柱") for p, _ in cai_cang) else "")
+                 + (f"{'；' if cai_tou else ''}门户藏财"
+                    f"{'、'.join(g for p, g in cai_cang if p in menhu)}"
+                    if any(p in menhu for p, _ in cai_cang) else "")
         hits.append(HZHit("富", HZ_LINES[0], True, f"{detail}——财气通门户之象"))
     else:
         hits.append(HZHit("富", HZ_LINES[0], False,
@@ -135,4 +141,76 @@ def hezhi(chart: BaziChart, st: StrengthResult) -> list[HZHit]:
     return hits
 
 
-__all__ = ["HZHit", "hezhi"]
+def _virtual_pillar(chart: BaziChart, name: str, ganzhi: str) -> Pillar:
+    """把大运/流年干支构造为虚拟柱（十神按日主起算；旬空/纳音同排盘口径）。"""
+    day = chart.day_master
+    gan, zhi = ganzhi[0], ganzhi[1]
+    hide = list(LunarUtil.ZHI_HIDE_GAN[zhi])
+    xun = LunarUtil.getXun(ganzhi)
+    return Pillar(
+        name=name, gan_zhi=ganzhi, gan=gan, zhi=zhi,
+        hide_gan=hide,
+        shi_shen_gan="日主" if gan == day else LunarUtil.SHI_SHEN[day + gan],
+        shi_shen_zhi=[LunarUtil.SHI_SHEN[day + g] if g != day else "日主"
+                      for g in hide],
+        na_yin=LunarUtil.NAYIN[ganzhi],
+        wu_xing=LunarUtil.WU_XING_GAN[gan],
+        di_shi="", xun=xun,
+        xun_kong=LunarUtil.XUN_KONG[LunarUtil.XUN.index(xun)])
+
+
+def _extend_chart(chart: BaziChart, extra_ganzhi: list[str]) -> BaziChart:
+    """原局 + 岁运干支（1-2 个）合成排盘，供 strength/hezhi 重算。"""
+    names = ["大运", "流年"][:len(extra_ganzhi)]
+    extra = [_virtual_pillar(chart, n, gz) for n, gz in zip(names, extra_ganzhi)]
+    return _dc.replace(chart, pillars=list(chart.pillars) + extra)
+
+
+def hezhi_suiyun(chart: BaziChart, st: StrengthResult):
+    """何知章速览接大运流年：逐大运（及大运内逐年）并入原局重算 8 句命中。
+
+    返回 (dayun_rows, liunian_diffs)：
+    - dayun_rows: [{"index","gan_zhi","matched":[…],"delta":…}]，delta 为相对原局变化；
+    - liunian_diffs: [{"dayun","year","gan_zhi","added":[…],"matched":[…]}]
+      （只列相对该步大运新增命中的流年）。
+    """
+    from lunar_python import LunarYear
+
+    from .strength import compute as strength_compute
+
+    base_keys = {h.key for h in hezhi(chart, st) if h.matched}
+    dayun_rows: list[dict] = []
+    per_dayun: dict[int, set] = {}
+    for d in chart.dayun:
+        ext = _extend_chart(chart, [d.gan_zhi])
+        keys = {h.key for h in hezhi(ext, strength_compute(ext)) if h.matched}
+        per_dayun[d.index] = keys
+        added = sorted(keys - base_keys, key=HZ_ORDER.index)
+        removed = sorted(base_keys - keys, key=HZ_ORDER.index)
+        delta = ""
+        if added or removed:
+            delta = ("新增" + "、".join(added) if added else "")
+            if removed:
+                delta += ("；消失" if delta else "消失") + "、".join(removed)
+        dayun_rows.append({"index": d.index, "gan_zhi": d.gan_zhi,
+                           "matched": sorted(keys, key=HZ_ORDER.index),
+                           "delta": delta or "同原局"})
+
+    liunian_diffs: list[dict] = []
+    for d in chart.dayun:
+        base = per_dayun[d.index]
+        for y in range(d.start_year, d.end_year + 1):
+            gz = LunarYear.fromYear(y).getGanZhi()
+            if gz == d.gan_zhi:      # 流年干支同大运，无新增信息
+                continue
+            ext2 = _extend_chart(chart, [d.gan_zhi, gz])
+            keys = {h.key for h in hezhi(ext2, strength_compute(ext2)) if h.matched}
+            added = sorted(keys - base, key=HZ_ORDER.index)
+            if added:
+                liunian_diffs.append({"dayun": d.index, "year": y, "gan_zhi": gz,
+                                      "added": added,
+                                      "matched": sorted(keys, key=HZ_ORDER.index)})
+    return dayun_rows, liunian_diffs
+
+
+__all__ = ["HZHit", "hezhi", "hezhi_suiyun"]

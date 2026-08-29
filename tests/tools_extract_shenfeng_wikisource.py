@@ -67,6 +67,34 @@ NOTES = {
     "病药说类": "与影印本文字层互校一致。",
 }
 
+# 雕枯旺弱逐十神细分引句：key=十神类，(引句, 病类标签)；
+# 须双源（维基文库+影印本）逐字互证，不满足者生成时剔除。
+RULE_QUOTES_CANDIDATES: dict[str, list[tuple[str, str]]] = {
+    "官杀": [
+        ("见官星未曾有伤官", "雕：官星无伤官则太纯"),
+        ("苟若官星无根，官从何出？", "枯：官星无根"),
+        ("官星之气有余，则损其官星", "损：官有余则损之"),
+        ("若官星太弱，宜行官旺之乡", "弱：官弱宜行官旺地"),
+    ],
+    "财": [
+        ("见财星未曾有比劫", "雕：财星无比劫则太纯"),
+        ("财星无根，财从何生？", "枯：财星无根"),
+        ("财星之气有余，则损其财星", "损：财有余则损之"),
+        ("财星太弱，宜行财旺之地", "弱：财弱宜行财旺地"),
+    ],
+    "印": [
+        ("见印绶未曾有财星", "雕：印绶无财星则太纯"),
+    ],
+    "日主": [
+        ("日干太旺者，宜行官杀运以制其日主", "旺：日主旺宜官杀制"),
+        ("日主太弱，宜行身旺之地", "弱：日主弱宜行身旺地"),
+    ],
+    "比劫": [
+        ("宜行比劫动以去财星", "旺：财旺宜行比劫（底本「比劫动」疑当作「比劫运」）"),
+    ],
+    "食伤": [],
+}
+
 
 def _norm(s: str) -> str:
     return re.sub(r"\s+", "", s)
@@ -105,6 +133,20 @@ def main() -> int:
         print("以下候选引句未通过双源互校，已剔除：")
         for d in dropped:
             print("  -", d)
+
+    # 雕枯旺弱逐十神细分引句：对四章合文 + 影印本双源互证
+    all4 = _norm("".join(chapters.values()))
+    rule_quotes: dict[str, list[list[str]]] = {}
+    for key, cands in RULE_QUOTES_CANDIDATES.items():
+        keep = []
+        for q, label in cands:
+            nq = _norm(q)
+            if nq in all4 and nq in pdf:
+                keep.append([q, label])
+            else:
+                print(f"  RULE 剔除：{key} :: {q} (ws={nq in all4}, pdf={nq in pdf})")
+        rule_quotes[key] = keep
+
     with OUT.open("w", encoding="utf-8") as f:
         f.write('"""《神峰通考》（明·张楠撰，公版）盖头说/病药说类/雕枯旺弱四病说类/\n')
         f.write("损益生长四药说类 逐字文本。\n\n")
@@ -112,7 +154,8 @@ def main() -> int:
         f.write("https://zh.wikisource.org/wiki/神峰通考），与影印本文字层\n")
         f.write("research/fetched/shenfeng.txt 双源互校；由 tests/tools_extract_shenfeng_wikisource.py\n")
         f.write("程序化提取，一致性由 tests/test_shenfeng_text.py 回归锁定。\n")
-        f.write("SHENFENG：章文；SHENFENG_QUOTES：双源互证引用句；NOTES：转录讹误如实标注。\n")
+        f.write("SHENFENG：章文；SHENFENG_QUOTES：双源互证引用句；NOTES：转录讹误如实标注；\n")
+        f.write("RULE_QUOTES：雕枯旺弱逐十神细分引句（引句, 病类标签），同样双源互证。\n")
         f.write('"""\n\n')
         f.write("SHENFENG: dict[str, str] = {\n")
         for k, v in chapters.items():
@@ -123,8 +166,13 @@ def main() -> int:
         f.write("}\n\nNOTES: dict[str, str] = {\n")
         for k, v in NOTES.items():
             f.write(f"    {json.dumps(k, ensure_ascii=False)}: {json.dumps(v, ensure_ascii=False)},\n")
+        f.write("}\n\nRULE_QUOTES: dict[str, list[list[str]]] = {\n")
+        for k, v in rule_quotes.items():
+            f.write(f"    {json.dumps(k, ensure_ascii=False)}: {json.dumps(v, ensure_ascii=False)},\n")
         f.write("}\n")
-    print(f"已生成 {OUT}（章 {len(chapters)}，双源互证引用句 {sum(len(v) for v in quotes.values())}）")
+    print(f"已生成 {OUT}（章 {len(chapters)}，双源互证引用句 "
+          f"{sum(len(v) for v in quotes.values())}，细分引句 "
+          f"{sum(len(v) for v in rule_quotes.values())}）")
     return 0
 
 

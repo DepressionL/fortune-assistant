@@ -131,6 +131,7 @@ def _bazi_meta(chart, config, schools: list[str] | None = None) -> dict:
     school_list = schools or [config.yongshen_school]
     st = strength_mod.compute(chart)
     ys = yongshen_mod.compute_yongshen(chart, school_list[0])
+    dayun_rows, liunian_diffs = ditiansui_mod.hezhi_suiyun(chart, st)
     return {
         "tool": "bazi",
         "chart": dataclasses.asdict(chart),
@@ -141,6 +142,8 @@ def _bazi_meta(chart, config, schools: list[str] | None = None) -> dict:
         "yongshen_all": {s: dataclasses.asdict(yongshen_mod.compute_yongshen(chart, s))
                          for s in school_list},
         "hezhi": [dataclasses.asdict(h) for h in ditiansui_mod.hezhi(chart, st)],
+        "hezhi_dayun": dayun_rows,
+        "hezhi_liunian": liunian_diffs[:20],
     }
 
 

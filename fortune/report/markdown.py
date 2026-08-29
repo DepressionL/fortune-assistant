@@ -131,6 +131,30 @@ def bazi_markdown(chart: BaziChart, config: FortuneConfig,
     if not matched:
         lines.append("- 8 句无一命中（以规则映射为准，仅参考）。")
     lines.append("")
+
+    # 何知章速览·大运流年
+    lines.append("### 何知章速览·大运流年（规则映射，岁运干支并入原局计分）")
+    lines.append("")
+    lines.append("> 逐大运（及大运内逐年）把岁运干支并入原局、重算旺衰与 8 句命中"
+                 "（同一规则引擎）；岁运十神按日主起算，计分沿用原局月令状态（经验简化）。"
+                 "仅列命中句与变化。")
+    lines.append("")
+    dayun_rows, liunian_diffs = hz_mod.hezhi_suiyun(chart, st)
+    lines.append(_table(["大运", "干支", "命中句", "相对原局"],
+                        [[str(r["index"]), r["gan_zhi"],
+                          "、".join(r["matched"]) or "—", r["delta"]]
+                         for r in dayun_rows]))
+    lines.append("")
+    if liunian_diffs:
+        lines.append(f"流年变例（相对该步大运新增命中，最多列 10 条，共 {len(liunian_diffs)} 条）：")
+        for d in liunian_diffs[:10]:
+            lines.append(f"- 第{d['dayun']}步大运内 {d['gan_zhi']}年（{d['year']}）："
+                         f"新增{'、'.join(d['added'])}")
+        if len(liunian_diffs) > 10:
+            lines.append(f"- （其余 {len(liunian_diffs) - 10} 条从略）")
+    else:
+        lines.append("流年变例：各流年命中集均与该步大运相同。")
+    lines.append("")
     return "\n".join(lines)
 
 

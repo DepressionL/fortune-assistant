@@ -258,6 +258,55 @@ def duanyu(chart: LiuYaoChart) -> str:
     if fu:
         lun_hits.append(_lun_quote("伏吟卦定例第十二", 0,
                                    f"（{chart.ben_gua}变{chart.bian_gua}，六爻地支伏吟）"))
+    # 旺相休囚论第十三：旺相爻被日辰克（暂时之用）／休囚爻得日辰生（待时之用）
+    wang_lin: list = []
+    xiu_lin: list = []
+    for ln in chart.lines:
+        mrel = _rel(chart.month_zhi, ln.gan_zhi[1])
+        drel = _rel(chart.day_ganzhi[1], ln.gan_zhi[1])
+        mhe = LIU_HE.get(chart.month_zhi) == ln.gan_zhi[1]
+        wang = mrel in ("生", "比和") or mhe
+        xiu = mrel in ("克", "泄", "耗")
+        if wang and drel == "克":
+            wang_lin.append(ln)
+        if xiu and drel == "生":
+            xiu_lin.append(ln)
+    if wang_lin:
+        lun_hits.append(_lun_quote("旺相休囚論第十三", 0,
+                                   f"（第{'、'.join(str(ln.no) for ln in wang_lin)}爻旺相而被日辰克）"))
+    if xiu_lin:
+        lun_hits.append(_lun_quote("旺相休囚論第十三", 1,
+                                   f"（第{'、'.join(str(ln.no) for ln in xiu_lin)}爻休囚而得日辰生）"))
+    # 合中带克论第十四：动爻化出之支与本爻成克合（子丑/卯戌/巳申）
+    ke_he = [ln for ln in moving if (ln.gan_zhi[1], ln.bian_gan_zhi[1]) in
+             (("子", "丑"), ("丑", "子"), ("卯", "戌"), ("戌", "卯"),
+              ("申", "巳"), ("巳", "申"))]
+    for ln in ke_he:
+        ben, bian = ln.gan_zhi[1], ln.bian_gan_zhi[1]
+        if (ben, bian) == ("申", "巳"):
+            # 申金变出巳火：巳为金之长生，十八论特例「不作克论，乃化合化长生」。
+            # 注：本仓装卦法（变卦=动爻翻转）下，动爻化出「申化巳」暂无可达卦例
+            # （多见于静爻变支记录），此判定保留以备装卦口径扩展。
+            lun_hits.append(_lun_quote("合中帶剋論第十四", 3,
+                                       f"（第{ln.no}爻{ben}化{bian}：不作克论，乃化合化长生）"))
+            continue
+        mrel = _rel(chart.month_zhi, ben)
+        drel = _rel(chart.day_ganzhi[1], ben)
+        wang = mrel in ("生", "比和") or LIU_HE.get(chart.month_zhi) == ben
+        xiu = mrel in ("克", "泄", "耗")
+        if wang and drel == "生":
+            lun_hits.append(_lun_quote("合中帶剋論第十四", 0,
+                                       f"（第{ln.no}爻{ben}化{bian}，合中带克）"))
+            lun_hits.append(_lun_quote("合中帶剋論第十四", 1,
+                                       f"（第{ln.no}爻旺相得生扶——作合论）"))
+        elif xiu and drel == "克":
+            lun_hits.append(_lun_quote("合中帶剋論第十四", 0,
+                                       f"（第{ln.no}爻{ben}化{bian}，合中带克）"))
+            lun_hits.append(_lun_quote("合中帶剋論第十四", 2,
+                                       f"（第{ln.no}爻休囚失令被克——作克论）"))
+        else:
+            lun_hits.append(_lun_quote("合中帶剋論第十四", 0,
+                                       f"（第{ln.no}爻{ben}化{bian}，合中带克）"))
     if lun_hits:
         L.append("")
         L.append("### 十八论引注（《卜筮正宗》卷三，触发性引用）")
@@ -268,7 +317,7 @@ def duanyu(chart: LiuYaoChart) -> str:
     L.append("> 口径提示：变爻六亲按本宫五行论（主流）；铜钱约定见上文。"
              "月建/日辰生克冲合为确定性关系事实，吉凶程度（旺相休囚）"
              "尚需结合爻之旺衰，此处仅列关系。"
-             "十八论引注为触发性引用（旬空/月破/进退/反吟/伏吟），"
+             "十八论引注为触发性引用（旬空/月破/进退/反吟/伏吟/旺相休囚/合中带克），"
              "章文逐字存档见 fortune/liuyao/shiba_lun_text.py。")
     return "\n".join(L)
 

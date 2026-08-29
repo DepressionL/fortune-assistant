@@ -131,7 +131,9 @@ fortune solar-info -y 2024 -m 2 -d 10
   雕枯旺弱四病说类/损益生长四药说类四章（`fortune/bazi/shenfeng_text.py`）；
   **引用句须同时逐字存在于维基文库本与影印本文字层（双源互证）**，文库本转录
   讹误（「而」作「雨」、「枯」作「桔」等）如实标注。bingyao 输出升级为双源互校
-  出处并附四病四药引文；病神透干时触发盖头说引注。回归见 `tests/test_shenfeng_text.py`。
+  出处并附四病四药引文；病神透干时触发盖头说引注；并按病神所属十神类附
+  **雕枯旺弱逐格细分引句**（官杀/财/印/日主/比劫，RULE_QUOTES 双源互证，
+  如「苟若官星无根，官从何出？」）。回归见 `tests/test_shenfeng_text.py`。
 - **《卜筮正宗》六亲持世逐字引文**：转码存档（`research/fetched/bushizhengzong.txt`），
   duanyu 六亲持世通论升级为「诸爻持世诀」逐字引文（该本「子身/井临」刊误如实
   保留并标注），引文忠实性由 `tests/test_liuyao_duanyu.py` 锁定。
@@ -139,7 +141,8 @@ fortune solar-info -y 2024 -m 2 -d 10
   `fortune/liuyao/shiba_lun_text.py`——第 1–11、16–18 章取自校注本，**该本所缺的
   第 12–15 章（伏吟/旺相休囚/合中带克/合处逢冲）取自識典古籍影印 OCR**
   （双源按章标注；「四生逐位论」底本误刻「第六」已标注）。六爻断语对旬空/月破/
-  化进退化/卦变反吟/伏吟**触发性引用对应论原文**。口径见 `research/shiba_lun.md`，
+  化进退化/卦变反吟/伏吟/**旺相休囚（暂时之用/待时之用）/合中带克（作合论/作克论/
+  申化巳化合长生特例）**触发性引用对应论原文。口径见 `research/shiba_lun.md`，
   回归见 `tests/test_shiba_lun.py`。
 - **《梅花易数》体用总诀引注**：转码存档（`research/fetched/meihua_yishu.txt`），
   梅花输出附体用总诀原文（与体用生克断语逐字互证），模块与输出标注「题宋·邵雍撰，
@@ -153,7 +156,9 @@ fortune solar-info -y 2024 -m 2 -d 10
   《滴天髓阐微》互校（`research/fetched/ditiansui_wikisource.txt`）；底本异文
   「品泯/财贫神」（通行作「品汇/财神」）如实标注。wangshuai 附理气/衰旺/中和、
   tiaohou 附寒暖/燥湿、tongguan 附通关引文；报告新增**何知章速览**（8 句规则
-  映射，经验性简化，`fortune/bazi/ditiansui.py`）。回归见 `tests/test_ditiansui_text.py`。
+  映射，经验性简化，`fortune/bazi/ditiansui.py`），并**接大运流年**：逐大运及
+  大运内逐年把岁运干支并入原局重算命中（表格列出相对原局/相对大运的变化，
+  写入 meta）。回归见 `tests/test_ditiansui_text.py`。
 - **《子平真诠评注》（八字 geju 流派）**：由 research/Book 评注 txt 转码存档
   （`research/fetched/ziping_pingzhu.txt`），程序化提取 48 章合刊文本
   （`fortune/bazi/ziping_text.py`，沈孝瞻原著、徐乐吾评注，原文与评注未逐段分离
@@ -214,12 +219,12 @@ fortune solar-info -y 2024 -m 2 -d 10
 - **穷举表校验**：`tests/test_exhaustive.py` 用独立权威清单全量核对 64 卦名（King Wen 序）、
   由「本宫卦逐爻变」规则独立推导复现八宫 64 卦与世应、纳甲地支经典口诀清单、
   神煞公式全干全支穷举、驿马桃花华盖将星劫煞灾煞由三合长生位公式推导核验。
-- **测试**：`tests/` 共 182 项断言（黄金用例、HKO 官方数据 4 个年份、穷举表校验、
+- **测试**：`tests/` 共 191 项断言（黄金用例、HKO 官方数据 4 个年份、穷举表校验、
   争议开关、第二轮审查回归、周易表完整性、六爻变爻纳甲与断语、CLI 输入校验、
   穷通宝鉴调候表忠实性与喜用提炼、三命通会新神煞黄金用例、渊海子平交叉核验
   （赋文本+足本）、子平真诠评注忠实性与 geju 接线、神峰通考病药流派、卜筮正宗/
-  梅花易数/滴天髓引文忠实性、十八论双源逐字锁定、神峰通考四病四药双源互证、
-  滴天髓何知章规则映射），
+  梅花易数/滴天髓引文忠实性、十八论双源逐字锁定与触发、神峰通考四病四药双源
+  互证与逐格细分、滴天髓何知章规则映射与大运流年），
   另 `plugin/test/` 17 项 node 测试（含 `e2e.cli.test.mjs` 端到端契约测试：真跑
   `python -m fortune.cli`，断言工具 schema 广告的每个参数组合 exit 0、非法输入
   返回可读报错——此前的 ziwei `--day-change` 崩溃即由该层契约测试防住）；全部通过。
@@ -249,7 +254,7 @@ fortune/
 └── cli.py           # typer 命令行
 plugin/              # DSH 原生插件（dsh.bundle，7 个 fortune_* 工具）
 research/            # 文献核验文档 + HKO 官方历法数据（表出处与分歧的依据）
-tests/               # 182 项断言
+tests/               # 191 项断言
 ```
 
 ## 文献与数据来源（硬编码表依据）

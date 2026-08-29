@@ -88,3 +88,47 @@ def test_duanyu_fuyin_trigger():
     text = duanyu(c)
     assert "伏吟卦定例第十二" in text and "伏吟卦有三" in text
     assert "識典" in text
+
+
+def test_duanyu_wangxiang_trigger():
+    """火山旅（静卦）：初爻辰、五爻未旺相（月建午生/合）而被日辰寅克
+    → 应触发旺相休囚论「旺相者，暫時之用也」。"""
+    c = from_coins([2, 2, 1, 1, 2, 1], "午", "甲寅")
+    assert c.ben_gua == "火山旅"
+    text = duanyu(c)
+    assert "旺相休囚論第十三" in text
+    assert "暫時之用也" in text
+
+
+def test_duanyu_xiuqiu_trigger():
+    """乾为天（静卦）：五爻申休囚（月建午克）而得日辰辰生
+    → 应触发旺相休囚论「休囚者，待時之用也」。"""
+    c = from_coins([1, 1, 1, 1, 1, 1], "午", "甲辰")
+    text = duanyu(c)
+    assert "旺相休囚論第十三" in text
+    assert "待時之用也" in text
+
+
+def test_duanyu_hezhongdaike_trigger():
+    """乾为天初爻动 → 天风姤：子变丑（子丑合，克合）→ 应触发合中带克论。"""
+    c = from_coins([3, 1, 1, 1, 1, 1], "午", "甲午")
+    assert c.ben_gua == "乾为天" and c.bian_gua == "天风姤"
+    text = duanyu(c)
+    assert "合中帶剋論第十四" in text
+    assert "合三剋七之分" in text
+
+
+def test_duanyu_hezhongdaike_zuohe_trigger():
+    """乾为天初爻动（子化丑），月建申/日辰申生扶旺相 → 应附「是作合論也」。"""
+    c = from_coins([3, 1, 1, 1, 1, 1], "申", "甲申")
+    text = duanyu(c)
+    assert "合中帶剋論第十四" in text
+    assert "是作合論也" in text
+
+
+def test_duanyu_hezhongdaike_zuoke_trigger():
+    """乾为天初爻动（子化丑），月建未/日辰己未克之休囚 → 应附「是作剋論也」。"""
+    c = from_coins([3, 1, 1, 1, 1, 1], "未", "己未")
+    text = duanyu(c)
+    assert "合中帶剋論第十四" in text
+    assert "是作剋論也" in text

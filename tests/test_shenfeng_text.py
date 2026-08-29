@@ -7,7 +7,7 @@ import pytest
 
 from fortune.bazi import yongshen as ys
 from fortune.bazi.chart import build as build_bazi
-from fortune.bazi.shenfeng_text import NOTES, SHENFENG, SHENFENG_QUOTES
+from fortune.bazi.shenfeng_text import NOTES, RULE_QUOTES, SHENFENG, SHENFENG_QUOTES
 from fortune.bazi.strength import compute as strength_compute
 from fortune.config import FortuneConfig
 from fortune.core.calendar import normalize
@@ -93,3 +93,28 @@ def test_bingyao_gaitou_trigger_when_bing_tou_gan():
     text2 = "\n".join(r2.conclusions)
     if "病神取火" in text2:
         assert "盖头说" in text2 and "露出头面" in text2
+
+
+@pytest.mark.skipif(not SRC_WS.exists() or not SRC_PDF.exists(), reason="存档缺失")
+def test_rule_quotes_dual_source():
+    """雕枯旺弱逐十神细分引句须双源（维基文库四章合文 + 影印本）逐字互证。"""
+    ws = _norm("".join(SHENFENG.values()))
+    pdf = _norm(SRC_PDF.read_text(encoding="utf-8"))
+    assert RULE_QUOTES["官杀"] and RULE_QUOTES["财"] and RULE_QUOTES["印"]
+    assert RULE_QUOTES["日主"] and RULE_QUOTES["比劫"]
+    for lei, qs in RULE_QUOTES.items():
+        for q, lab in qs:
+            assert _norm(q) in ws, f"{lei} :: {q}"
+            assert _norm(q) in pdf, f"{lei} :: {q}"
+            assert lab
+
+
+def test_bingyao_per_ge_subdivision():
+    """病神所属十神类应触发对应四病四药细分引句：
+    1990-06-15 病神=火=官杀 → 「雕枯旺弱·官杀细分」。"""
+    c = make("1990-06-15 13:30")
+    st = strength_compute(c)
+    text = "\n".join(ys.bingyao(c, st).conclusions)
+    assert "病神取火" in text
+    assert "雕枯旺弱·官杀细分" in text
+    assert "苟若官星无根，官从何出？" in text

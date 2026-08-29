@@ -84,6 +84,34 @@ def test_hezhi_no_crash_strong():
     assert len(hits) == 8 and any(h.matched for h in hits)
 
 
+def test_hezhi_suiyun_golden():
+    """1990-06-15 大运流年重算：大运4丙戌/5丁亥透火忌神 → 新增「凶」；
+    大运1内 丁丑(1997)/丙戌(2006) 流年新增「凶」。"""
+    c = make("1990-06-15 13:30")
+    st = strength_compute(c)
+    rows, diffs = hz_mod.hezhi_suiyun(c, st)
+    assert len(rows) == 8
+    by_index = {r["index"]: r for r in rows}
+    base = {h.key for h in hz_mod.hezhi(c, st) if h.matched}
+    assert by_index[1]["gan_zhi"] == "癸未"
+    assert by_index[1]["delta"] == "同原局"
+    assert by_index[4]["delta"] == "新增凶" and "凶" in by_index[4]["matched"]
+    assert by_index[5]["delta"] == "新增凶"
+    for r in rows:
+        assert set(r["matched"]) <= set(base) | {"凶"}
+    diffs_by = {(d["dayun"], d["gan_zhi"], d["year"]): d for d in diffs}
+    assert diffs_by[(1, "丁丑", 1997)]["added"] == ["凶"]
+    assert diffs_by[(1, "丙戌", 2006)]["added"] == ["凶"]
+    assert all(d["added"] for d in diffs)
+
+
+def test_hezhi_suiyun_strong_no_crash():
+    c = make("1984-03-02 12:00")
+    st = strength_compute(c)
+    rows, diffs = hz_mod.hezhi_suiyun(c, st)
+    assert len(rows) == 8 and all(len(r["matched"]) <= 8 for r in rows)
+
+
 def test_yongshen_quotes_enriched():
     """wangshuai/tiaohou/tongguan 输出应含新增《滴天髓》引文。"""
     c = make("1990-06-15 13:30")
@@ -101,8 +129,11 @@ def test_cli_hezhang_section():
     from typer.testing import CliRunner
     from fortune.cli import app
     r = CliRunner().invoke(app, ["bazi", "-y", "1990", "-m", "6", "-d", "15",
-                                 "-H", "13", "--schools", "wangshuai,bingyao"])
+                                 "-H", "13", "--no-true-solar",
+                                 "--schools", "wangshuai,bingyao"])
     assert r.exit_code == 0, r.output
     assert "何知章速览" in r.output
     assert "何知其人富？财气通门户。" in r.output
     assert "何知其人寿？性定元神厚" in r.output
+    assert "何知章速览·大运流年" in r.output
+    assert "丙戌" in r.output and "新增凶" in r.output

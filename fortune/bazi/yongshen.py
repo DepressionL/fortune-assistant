@@ -240,7 +240,9 @@ def geju(chart: BaziChart) -> YongshenResult:
 
 def bingyao(chart: BaziChart, st: StrengthResult) -> YongshenResult:
     """病药（《神峰通考》病药说类）：依「从重者论」找病神、取克病之药神；
-    附四病四药（雕枯旺弱/损益生长）与盖头说引文（维基文库本，与影印本互校）。"""
+    附四病四药（雕枯旺弱/损益生长）与盖头说引文（维基文库本，与影印本互校），
+    并按病神所属十神细分引用（RULE_QUOTES，双源互证）。"""
+    from .shenfeng_text import RULE_QUOTES as SF_RULE
     from .shenfeng_text import SHENFENG_QUOTES as SFQ
 
     y = YongshenResult(school="bingyao（病药，《神峰通考》）")
@@ -277,6 +279,13 @@ def bingyao(chart: BaziChart, st: StrengthResult) -> YongshenResult:
         y.conclusions.append(
             f"病神{bing}透干（盖头）：《神峰通考》盖头说「"
             + SFQ["盖头说"][1] + "」——病显于天干，尤须药制")
+    # 雕枯旺弱逐十神细分：病神所属十神类的四病四药引句
+    bing_lei = {guan: "官杀", cai: "财", yin: "印", bi: "日主", shi: "食伤"}[bing]
+    rule_qs = SF_RULE.get(bing_lei, [])
+    if rule_qs:
+        parts = " ".join(f"「{q}」（{lab}）" for q, lab in rule_qs)
+        y.conclusions.append(
+            f"雕枯旺弱·{bing_lei}细分（《神峰通考》四病四药，双源互证）：{parts}")
     return y
 
 
