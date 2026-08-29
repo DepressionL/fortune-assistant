@@ -54,11 +54,11 @@ test("e2e：全部工具 × 全部广告参数 真跑 CLI（契约）", { timeou
   // 2) 八字：--schools 多流派一次对比
   r = await t.fortune_bazi.execute({
     ...BIRTH, lng: 116.4, trueSolar: true, dayChange: 23,
-    schools: "wangshuai,tiaohou,tongguan,geju",
+    schools: "wangshuai,tiaohou,tongguan,geju,bingyao",
   });
   assert.equal(r.ok, true, `bazi schools 失败: ${r.output}`);
   assert.deepEqual(Object.keys(r.meta.yongshen_all).sort(),
-                   ["geju", "tiaohou", "tongguan", "wangshuai"]);
+                   ["bingyao", "geju", "tiaohou", "tongguan", "wangshuai"]);
 
   // 3) 紫微：完整 BIRTH_SPEC + 庚年/闰月开关（此路径此前崩溃）
   r = await t.fortune_ziwei.execute({

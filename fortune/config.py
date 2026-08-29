@@ -51,7 +51,7 @@ class FortuneConfig:
     shensha_base: str = "day"
 
     #: 用神流派："wangshuai"（旺衰平衡，默认）| "tiaohou"（调候，《穷通宝鉴》）
-    #: | "tongguan"（通关）| "geju"（格局，《子平真诠》）。
+    #: | "tongguan"（通关）| "geju"（格局，《子平真诠》）| "bingyao"（病药，《神峰通考》）。
     #: 注意：用神推断本质是经验规则而非确定性算法，本工具只做「透明的打分+规则」，
     #: 结果标注为参考。分歧详见 README。
     yongshen_school: str = "wangshuai"
@@ -80,7 +80,7 @@ class FortuneConfig:
             'year_change 只能为 "lichun" 或 "lunar_new_year"'
         assert self.yun_days_per_year in (2, 3, 5), "yun_days_per_year 只能为 2/3/5"
         assert self.shensha_base in ("day", "year"), 'shensha_base 只能为 "day" 或 "year"'
-        assert self.yongshen_school in ("wangshuai", "tiaohou", "tongguan", "geju"), \
+        assert self.yongshen_school in ("wangshuai", "tiaohou", "tongguan", "geju", "bingyao"), \
             "yongshen_school 取值非法"
         assert self.ziwei_leap_month in ("as_month", "as_next", "mid_split"), \
             "ziwei_leap_month 取值非法"

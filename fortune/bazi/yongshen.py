@@ -5,10 +5,14 @@
 结论仅供研究参考。
 
 支持的流派（config.yongshen_school）：
-- wangshuai：旺衰平衡（身强克泄耗、身弱生扶），依据《滴天髓》/现代旺衰派；
-- tiaohou：调候（寒暖燥湿），简化自《穷通宝鉴》纲领；
-- tongguan：通关（两强相战取中间五行）；
-- geju：格局（月令取格 + 格局喜忌），简化自《子平真诠》。
+- wangshuai：旺衰平衡（身强克泄耗、身弱生扶），引《滴天髓》理气/衰旺/中和章；
+- tiaohou：调候（寒暖燥湿），简化自《穷通宝鉴》纲领，引《滴天髓》寒暖/燥湿章；
+- tongguan：通关（两强相战取中间五行），引《滴天髓》通关章；
+- geju：格局（月令取格 + 格局喜忌），简化自《子平真诠》；
+- bingyao：病药（《神峰通考》病药说类），附四病四药（雕枯旺弱/损益生长）
+  与盖头说引文（维基文库本，与影印本文字层双源互校）。
+引文均逐字出自 fortune/bazi/ditiansui_text.py、fortune/bazi/shenfeng_text.py
+（程序化提取，回归测试锁定），底本异文如实标注。
 """
 from __future__ import annotations
 
@@ -49,6 +53,8 @@ class YongshenResult:
 
 
 def wangshuai(chart: BaziChart, st: StrengthResult) -> YongshenResult:
+    from .ditiansui_text import QUOTES as DT_QUOTES
+
     day_wx = st.day_wx
     yin = next(w for w in WUXING_ORDER if SHENG[w] == day_wx)   # 印（生日主）
     bi = day_wx                                                # 比劫（同日主）
@@ -78,6 +84,11 @@ def wangshuai(chart: BaziChart, st: StrengthResult) -> YongshenResult:
             "旺衰法以中和为贵，用神随大运流年取平衡",
         ]
         y.yong_wuxing = [yin, bi, shi, cai, guan]
+    y.conclusions.append(
+        "《滴天髓》通神论（题宋·京图撰、明·刘基注；本仓 epub 底本，与维基文库"
+        "《滴天髓阐微》互校）引：「" + DT_QUOTES["理气"] + "」"
+        "「" + DT_QUOTES["衰旺"] + "」"
+        "「" + DT_QUOTES["中和"] + "」——旺衰进退、抑扬取中之义")
     return y
 
 
@@ -128,6 +139,9 @@ def tiaohou(chart: BaziChart) -> YongshenResult:
         lines.append("喜用提炼：原文无明确取用句（以原文为准）")
     lines.append("出处：《穷通宝鉴》维基文库本（research/fetched/qiongbao.txt，程序化提取、繁转简）")
     lines += [f"调候五行提示（简化规则）：{c}" for c in wx_conclusions]
+    from .ditiansui_text import QUOTES as DTQ
+    lines.append(f"《滴天髓》寒暖/燥湿（调候总纲）：「{DTQ['寒暖']}」「{DTQ['燥湿']}」"
+                 "（底本「品泯」通行排印本多作「品汇」）")
     y.conclusions = lines
     return y
 
@@ -153,12 +167,19 @@ def tongguan(chart: BaziChart, st: StrengthResult) -> YongshenResult:
             break
     if not found:
         y.conclusions = ["原局无明显两强相战，无需通关用神（通关法不适用时）"]
+    else:
+        from .ditiansui_text import QUOTES as DTQ
+        y.conclusions.append(
+            f"《滴天髓》通关：「{DTQ['通关']}」"
+            "（本仓 epub 与维基文库阐微本俱作「相邀入洞户」，通行排印本或作「相将入洞房」）")
     return y
 
 
 def geju(chart: BaziChart) -> YongshenResult:
-    """格局（简化自《子平真诠》）：月支本气/透干取格 + 格局喜忌。"""
-    y = YongshenResult(school="geju（格局，简化《子平真诠》）")
+    """格局（《子平真诠》原文+徐乐吾评注驱动）：月支本气/透干取格 + 格局喜忌 + 原文引文。"""
+    from .ziping_text import ZIPING
+
+    y = YongshenResult(school="geju（格局，《子平真诠》原文+徐乐吾评注）")
     mz = chart.pillar("月柱").zhi
     day = chart.day_master
     day_wx = LunarUtil.WU_XING_GAN[day]
@@ -178,9 +199,19 @@ def geju(chart: BaziChart) -> YongshenResult:
     ge_wx = LunarUtil.WU_XING_GAN[ge]
     shi = LunarUtil.SHI_SHEN[day + ge]  # 日主+定格干 → 十神
 
+    # 十神 → 《子平真诠》章名（合刊本；杂气/建禄另归）
+    _SHI_CHAPTER = {
+        "正官": "论正官", "七杀": "论偏官", "偏官": "论偏官",
+        "正财": "论财", "偏财": "论财",
+        "正印": "论印绶", "偏印": "论印绶",
+        "食神": "论食神", "伤官": "论伤官",
+        "比肩": "论建禄月劫", "劫财": "论建禄月劫",
+    }
+
     if mz in ("寅", "申", "巳", "亥") and ge == chart.pillar("月柱").gan and ge_wx == day_wx:
         y.conclusions = [f"月令{mz}为日主禄地，建禄格（月刃格另论）；喜财官（《子平真诠》）"]
         y.yong_wuxing = [KE[day_wx], next(w for w in WUXING_ORDER if KE[w] == day_wx)]
+        chapter = "论建禄月劫"
     else:
         rules = {
             "正官": ("喜财印相随", [KE[day_wx], next(w for w in WUXING_ORDER if SHENG[w] == day_wx)]),
@@ -198,15 +229,65 @@ def geju(chart: BaziChart) -> YongshenResult:
             f"格局喜忌：{tip}",
         ]
         y.yong_wuxing = wx
+        chapter = _SHI_CHAPTER.get(shi)
+    if chapter and chapter in ZIPING:
+        text = ZIPING[chapter]
+        y.conclusions.append(
+            f"《子平真诠》{chapter}（沈孝瞻原著、徐乐吾评注合刊本）："
+            f"{text[:100]}{'…' if len(text) > 100 else ''}")
+    return y
+
+
+def bingyao(chart: BaziChart, st: StrengthResult) -> YongshenResult:
+    """病药（《神峰通考》病药说类）：依「从重者论」找病神、取克病之药神；
+    附四病四药（雕枯旺弱/损益生长）与盖头说引文（维基文库本，与影印本互校）。"""
+    from .shenfeng_text import SHENFENG_QUOTES as SFQ
+
+    y = YongshenResult(school="bingyao（病药，《神峰通考》）")
+    day_wx = st.day_wx
+    yin = next(w for w in WUXING_ORDER if SHENG[w] == day_wx)   # 印
+    bi = day_wx                                                # 比劫
+    shi = SHENG[day_wx]                                        # 食伤
+    cai = KE[day_wx]                                           # 财
+    guan = next(w for w in WUXING_ORDER if KE[w] == day_wx)    # 官杀
+    if st.level == "身强":
+        bing = max([bi, yin], key=lambda w: st.scores.get(w, 0.0))
+    elif st.level == "身弱":
+        bing = max([guan, shi, cai], key=lambda w: st.scores.get(w, 0.0))
+    else:
+        y.conclusions = ["日主中和，无明显病神（病药法以「有病方为贵」立论，中和者另参旺衰）"]
+        return y
+    yao = next(w for w in WUXING_ORDER if KE[w] == bing)        # 克病之五行
+    y.yong_wuxing = [yao]
+    y.conclusions = [
+        f"日主{day_wx}（{st.level}），依「从重者论」病神取{bing}"
+        f"（最旺忌神，得分 {st.scores.get(bing, 0.0):.2f}）",
+        f"药神取{yao}（克病之神）；「或本身病重而得药重，又宜行运」——喜行{yao}旺之运",
+        "《神峰通考》病药说类原文：「" + SFQ["病药说类"][0] + "」"
+        "「" + SFQ["病药说类"][1] + "」"
+        "（维基文库本，与影印本文字层双源互校，见 fortune/bazi/shenfeng_text.py）",
+        "《神峰通考》雕枯旺弱四病说类：「" + SFQ["雕枯旺弱四病说类"][0] + "…"
+        + SFQ["雕枯旺弱四病说类"][1] + "」；损益生长四药说类：「"
+        + SFQ["损益生长四药说类"][0] + "」「" + SFQ["损益生长四药说类"][1]
+        + "」——病药说的四病四药扩展",
+    ]
+    # 盖头说：病神透干则「病」显于头面
+    shown_wx = [LunarUtil.WU_XING_GAN[g] for g in chart.gans()]
+    if bing in shown_wx:
+        y.conclusions.append(
+            f"病神{bing}透干（盖头）：《神峰通考》盖头说「"
+            + SFQ["盖头说"][1] + "」——病显于天干，尤须药制")
     return y
 
 
 def compute_yongshen(chart: BaziChart, school: str = "wangshuai") -> YongshenResult:
     """按流派计算用神。"""
-    if school in ("wangshuai", "tongguan"):
+    if school in ("wangshuai", "tongguan", "bingyao"):
         st = compute(chart)
         if school == "wangshuai":
             return wangshuai(chart, st)
+        if school == "bingyao":
+            return bingyao(chart, st)
         return tongguan(chart, st)
     if school == "tiaohou":
         return tiaohou(chart)

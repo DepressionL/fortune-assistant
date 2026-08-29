@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from ..bazi import ditiansui as hz_mod
 from ..bazi import relation, shensha, strength, yongshen
 from ..bazi.chart import BaziChart
 from ..config import FortuneConfig
@@ -115,6 +116,21 @@ def bazi_markdown(chart: BaziChart, config: FortuneConfig,
             lines.append(str(ys))
             lines.append("```")
             lines.append("")
+
+    # 何知章速览（《滴天髓》六亲论，规则映射）
+    lines.append("### 何知章速览（《滴天髓》六亲论，规则映射）")
+    lines.append("")
+    lines.append("> 8 句原文逐字出自《滴天髓》何知章（本仓 epub 底本，与维基文库《滴天髓阐微》"
+                 "互校；「财贫神反不真」两底本俱同，通行排印本多作「财神反不真」）。"
+                 "规则映射为经验性简化（fortune/bazi/ditiansui.py），仅作速览参考。")
+    lines.append("")
+    hits = hz_mod.hezhi(chart, st)
+    matched = [h for h in hits if h.matched]
+    for h in matched:
+        lines.append(f"- 「{h.line}」——命中：{h.reason}")
+    if not matched:
+        lines.append("- 8 句无一命中（以规则映射为准，仅参考）。")
+    lines.append("")
     return "\n".join(lines)
 
 

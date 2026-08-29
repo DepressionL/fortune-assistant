@@ -121,12 +121,54 @@ fortune solar-info -y 2024 -m 2 -d 10
   须/耑/喜/得等关键词后随天干的规则抽取 + 否定语境排除 + 原文句引文锚点，
   明确标注「规则抽取自原文，仅供参考」）；与抓取页一致性由
   `tests/test_tiaohou.py` 回归锁定（每条目须为原文子串 + 黄金锚点 + 提炼锚点）。
+- **《神峰通考》病药流派（八字第 5 用神法）**：由 research/Book《神峰通考》PDF
+  文字层抽取（竖排，OCR 噪声已标注）「病药说类」原文，新增 bingyao 流派——
+  依「从重者论」定病神（身强取比劫/印最旺者、身弱取克泄耗最旺者）、取克病之
+  药神，附原文引文（「有病方为贵，无伤不是奇；格中如去病，财禄两相随」）。
+  回归见 `tests/test_shenfeng.py`。
+- **《神峰通考》四病四药与盖头说（第二轮扩充）**：抓取维基文库《神峰通考》全文
+  （`research/fetched/shenfeng_wikisource.txt`），程序化提取盖头说/病药说类/
+  雕枯旺弱四病说类/损益生长四药说类四章（`fortune/bazi/shenfeng_text.py`）；
+  **引用句须同时逐字存在于维基文库本与影印本文字层（双源互证）**，文库本转录
+  讹误（「而」作「雨」、「枯」作「桔」等）如实标注。bingyao 输出升级为双源互校
+  出处并附四病四药引文；病神透干时触发盖头说引注。回归见 `tests/test_shenfeng_text.py`。
+- **《卜筮正宗》六亲持世逐字引文**：转码存档（`research/fetched/bushizhengzong.txt`），
+  duanyu 六亲持世通论升级为「诸爻持世诀」逐字引文（该本「子身/井临」刊误如实
+  保留并标注），引文忠实性由 `tests/test_liuyao_duanyu.py` 锁定。
+- **《卜筮正宗》十八论（第二轮扩充）**：十八论逐字文本入
+  `fortune/liuyao/shiba_lun_text.py`——第 1–11、16–18 章取自校注本，**该本所缺的
+  第 12–15 章（伏吟/旺相休囚/合中带克/合处逢冲）取自識典古籍影印 OCR**
+  （双源按章标注；「四生逐位论」底本误刻「第六」已标注）。六爻断语对旬空/月破/
+  化进退化/卦变反吟/伏吟**触发性引用对应论原文**。口径见 `research/shiba_lun.md`，
+  回归见 `tests/test_shiba_lun.py`。
+- **《梅花易数》体用总诀引注**：转码存档（`research/fetched/meihua_yishu.txt`），
+  梅花输出附体用总诀原文（与体用生克断语逐字互证），模块与输出标注「题宋·邵雍撰，
+  传系后人托名」。
+- **《滴天髓》通神论引文**：节选本抽取存档（`research/fetched/ditiansui.txt`，
+  题京图撰/刘基注/任铁樵增注），旺衰流派输出附「理承气行岂有常，进兮退兮宜抑扬」
+  引文（版本如实标注）。
+- **《滴天髓》刘基注本全章 + 何知章速览（第二轮扩充）**：research/Book《滴天髓
+  原文（刘基注）》epub 抽取存档（`research/fetched/ditiansui_liuji.txt`），通神论
+  各章与何知章 8 句程序化提取（`fortune/bazi/ditiansui_text.py`），与维基文库
+  《滴天髓阐微》互校（`research/fetched/ditiansui_wikisource.txt`）；底本异文
+  「品泯/财贫神」（通行作「品汇/财神」）如实标注。wangshuai 附理气/衰旺/中和、
+  tiaohou 附寒暖/燥湿、tongguan 附通关引文；报告新增**何知章速览**（8 句规则
+  映射，经验性简化，`fortune/bazi/ditiansui.py`）。回归见 `tests/test_ditiansui_text.py`。
+- **《子平真诠评注》（八字 geju 流派）**：由 research/Book 评注 txt 转码存档
+  （`research/fetched/ziping_pingzhu.txt`），程序化提取 48 章合刊文本
+  （`fortune/bazi/ziping_text.py`，沈孝瞻原著、徐乐吾评注，原文与评注未逐段分离
+  并如实标注），geju 流派按取格引用对应章原文；另有原本 epub 存档作对齐底本。
+  回归见 `tests/test_ziping.py`，口径见 `research/ziping_tables.md`。
 - **《渊海子平》交叉核验**：抓取维基文库《淵海子平》全文（`research/fetched/
   yuanhai.txt`）——该版为赋文类编本、**无通行本卷一神煞起法篇**（如实记录）；
   可核验的「论阳刃」与本仓羊刃表逐字一致（穷举回归）；并据该版新增**魁罡
   （四日）、日贵（四日）、金神（三时）**三项，均附原文出处（魁罡《诗诀》
-  「壬戌」刊误已标注）。见 `research/shensha_tables.md` §28 与
-  `tests/test_shensha_yuanhai.py`。
+  「壬戌」刊误已标注）。**足本补核**：由 research/Book 足本 epub 抽取
+  `research/fetched/yuanhai_quanben.txt`（含卷一神煞起法篇），逐条比对——
+  太极/月德/天德/禄/驿马/华盖/金舆/空亡/羊刃九项一致；**天乙贵人两古本分歧**
+  （足本「庚辛逢马虎」版本二 vs 三命通会「甲戊庚牛羊」版本一，从版本一并引）；
+  学堂纳音派 vs 日干派两说并列；十恶大败两古本同作「乙丑」、按穷举为「己丑」。
+  见 `research/shensha_tables.md` §28 与 `tests/test_shensha_yuanhai*`。
 - **《三命通会》卷三神煞扩展**：抓取维基文库《三命通會/卷三》全文
   （`research/fetched/smtj_juan3.txt`），新增金舆、三奇（顺布）、学堂、词馆、
   亡神、天罗、地网、十恶大败、元辰、暗金的煞、六厄、勾煞、绞煞、德秀十四项，
@@ -172,9 +214,12 @@ fortune solar-info -y 2024 -m 2 -d 10
 - **穷举表校验**：`tests/test_exhaustive.py` 用独立权威清单全量核对 64 卦名（King Wen 序）、
   由「本宫卦逐爻变」规则独立推导复现八宫 64 卦与世应、纳甲地支经典口诀清单、
   神煞公式全干全支穷举、驿马桃花华盖将星劫煞灾煞由三合长生位公式推导核验。
-- **测试**：`tests/` 共 139 项断言（黄金用例、HKO 官方数据 4 个年份、穷举表校验、
+- **测试**：`tests/` 共 182 项断言（黄金用例、HKO 官方数据 4 个年份、穷举表校验、
   争议开关、第二轮审查回归、周易表完整性、六爻变爻纳甲与断语、CLI 输入校验、
-  穷通宝鉴调候表忠实性与喜用提炼、三命通会新神煞黄金用例、渊海子平交叉核验），
+  穷通宝鉴调候表忠实性与喜用提炼、三命通会新神煞黄金用例、渊海子平交叉核验
+  （赋文本+足本）、子平真诠评注忠实性与 geju 接线、神峰通考病药流派、卜筮正宗/
+  梅花易数/滴天髓引文忠实性、十八论双源逐字锁定、神峰通考四病四药双源互证、
+  滴天髓何知章规则映射），
   另 `plugin/test/` 17 项 node 测试（含 `e2e.cli.test.mjs` 端到端契约测试：真跑
   `python -m fortune.cli`，断言工具 schema 广告的每个参数组合 exit 0、非法输入
   返回可读报错——此前的 ziwei `--day-change` 崩溃即由该层契约测试防住）；全部通过。
@@ -204,7 +249,7 @@ fortune/
 └── cli.py           # typer 命令行
 plugin/              # DSH 原生插件（dsh.bundle，7 个 fortune_* 工具）
 research/            # 文献核验文档 + HKO 官方历法数据（表出处与分歧的依据）
-tests/               # 80 项断言
+tests/               # 182 项断言
 ```
 
 ## 文献与数据来源（硬编码表依据）
@@ -214,8 +259,11 @@ tests/               # 80 项断言
 - `research/shensha_tables.md` —— 神煞表（《三命通会》维基文库、《渊海子平》原文核验）
 - `research/ziwei_tables.md` —— 紫微安星诀核验清单（含 §6.1 引擎修正附注）
 - `research/liuyao_tables.md` —— 六爻纳甲/世应/六亲/六神/旬空（《增删卜易》《卜筮正宗》）
+- `research/shiba_lun.md` —— 《卜筮正宗》十八论双源分章标注与触发性引用口径
 - `research/chenggu_table.md` —— 称骨通行男命版全表
 - `research/xiaoliuren.md` —— 小六壬掌诀与断辞
+- 《神峰通考》四章、《滴天髓》各章与何知章：出处与异文见 `fortune/bazi/shenfeng_text.py`、
+  `fortune/bazi/ditiansui_text.py` 模块注释与 `research/fetched/README.md`
 - 梅花易数 64 卦表：通行本《周易》六十四卦（上象+下象规则），与 King Wen 序逐卦核对
 
 ## 局限与免责

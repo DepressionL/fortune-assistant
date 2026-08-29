@@ -39,7 +39,7 @@ def test_duanyu_static_gua():
 
 
 def test_shichi_quotes_verbatim_in_source():
-    """六亲持世的原文短引必须逐字存在于《增删卜易》原文存档中（防引文漂移）。"""
+    """六亲持世的原文引文必须逐字存在于《卜筮正宗》原文存档中（防引文漂移）。"""
     import pathlib
     import re
 
@@ -47,10 +47,11 @@ def test_shichi_quotes_verbatim_in_source():
 
     from fortune.liuyao.duanyu import SHI_CHI
 
-    src = pathlib.Path(__file__).resolve().parents[1] / "research" / "fetched" / "zengshan_toc.txt"
+    src = pathlib.Path(__file__).resolve().parents[1] / "research" / "fetched" / "bushizhengzong.txt"
     if not src.exists():
-        pytest.skip("《增删卜易》原文存档缺失，跳过")
+        pytest.skip("《卜筮正宗》原文存档缺失，跳过")
     text = src.read_text(encoding="utf-8")
+    text = re.sub(r"\s+", "", text)      # 诗体排版有换行，去空白后比对
     for qin, (_gloss, quotes) in SHI_CHI.items():
         for q in re.findall(r"「([^」]+)」", quotes):
-            assert q in text, f"{qin} 引文不在原文存档中：{q}"
+            assert re.sub(r"\s+", "", q) in text, f"{qin} 引文不在原文存档中：{q}"

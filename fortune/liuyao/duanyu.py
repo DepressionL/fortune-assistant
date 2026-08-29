@@ -2,11 +2,9 @@
 
 每条断语均可回溯到通行规则，出处（已对照维基文库《增删卜易》原文核验，
 见 research/liuyao_tables.md）：
-- 六亲持世通论：《增删卜易》身命诸章散文通义（如「子孫乃恬淡之神…身不犯刑」
-  「官鬼持世…疾病纏綿」「兄爻持世…耗財之神」「父母持世…辛勤勞碌」等）与
-  《卜筮正宗》「六亲持世歌」通行传本概括——该歌诀各传本文字互有出入
-  （《增删卜易》维基文库本无此歌诀章节，为散文论述），本模块只取各本一致的
-  通义，不逐字转写任一版本；
+- 六亲持世通论：通义取《增删卜易》身命诸章散文与《卜筮正宗》「诸爻持世诀」
+  各传本一致处；**引文逐字摘自《卜筮正宗》**（research/fetched/bushizhengzong.txt，
+  该本三处刊误「子身/井临/夬母」已如实保留并标注）；
 - 动变生克（回头生/回头克/化泄/化出/化进神/化退神）：《增删卜易》卷三
   「进神退神章第二十九」、《卜筮正宗》「十八论」。进神 8 对（亥化子、丑化辰、
   寅化卯、辰化未、巳化午、未化戌、申化酉、戌化丑）为现代排印本通行表；
@@ -26,8 +24,20 @@
 """
 from __future__ import annotations
 
-from . import ZHI_WUXING, WUXING_SHENG, LiuYaoChart
+from . import ZHI_WUXING, WUXING_SHENG, LiuYaoChart, PALACE_GUA
 from ..misc.zhouyi import meaning as gua_meaning
+from .shiba_lun_text import QUOTES as LUN_QUOTES
+
+#: 十八论中取自識典古籍影印 OCR 的章（第 12–15 章），引用时附底本说明
+_LUN_OCR_KEYS = {"伏吟卦定例第十二", "旺相休囚論第十三",
+                 "合中帶剋論第十四", "合處逢冲，冲中逢合論第十五"}
+
+#: 卦之反吟 = 卦变相冲（方位对冲：乾↔巽、坎↔离、艮↔坤、震↔兑），
+#: 见《卜筮正宗》反吟卦定例第十一（非逐爻地支相冲——后者为爻之反吟）。
+_CHONG_TRI = {"乾": "巽", "巽": "乾", "坎": "离", "离": "坎",
+              "艮": "坤", "坤": "艮", "震": "兑", "兑": "震"}
+_GUA_TRI = {name: (up, low)
+            for rows in PALACE_GUA.values() for (name, up, low, _, _) in rows}
 
 #: 六合（子丑合土、寅亥合木、卯戌合火、辰酉合金、巳申合水、午未合土）
 LIU_HE = {"子": "丑", "丑": "子", "寅": "亥", "亥": "寅", "卯": "戌", "戌": "卯",
@@ -42,22 +52,24 @@ LIU_CHONG = {"子": "午", "午": "子", "丑": "未", "未": "丑", "寅": "申
 JIN_SHEN = {("亥", "子"), ("丑", "辰"), ("寅", "卯"), ("辰", "未"),
             ("巳", "午"), ("未", "戌"), ("申", "酉"), ("戌", "丑")}
 
-#: 六亲持世通论：通义（概括）+ 原文短引（逐字）。
-#: 通义取《增删卜易》身命诸章散文与《卜筮正宗》六亲持世歌各传本一致处；
-#: 引文摘自维基文库本《增删卜易》（research/fetched/zengshan_toc.txt），
-#: 保持底本原字与标点（含小逗号「﹐」U+FE50），不做繁简改写。
+#: 六亲持世通论：通义（概括）+ 原文引文（逐字）。
+#: 通义取《增删卜易》身命诸章散文与《卜筮正宗》「诸爻持世诀」各传本一致处；
+#: 引文摘自《卜筮正宗》（research/fetched/bushizhengzong.txt，保持底本原字）。
+#: 该本三处刊误已如实保留并标注：「子身持世」通行作「子孙持世」、
+#: 「朱雀井临」当为「并临」、「夬母」当为「父母」。
 SHI_CHI = {
     "子孙": ("子孙为福神，持世主无忧、灾祸易解、谋事安然；但子孙克官鬼，占官求名不利。",
-             "「子孫乃恬淡之神」「見子﹐則身不犯刑」「子孫持世﹐休問功名」"),
+             "「子身持世事无忧，求名切忌坐当头，避乱许安失可得，官讼从今了便休」"
+             "（该本「子身」通行作「子孙」）"),
     "官鬼": ("官鬼为忧疑之神，持世主忧虑缠身、病讼多扰；占名望、官职、功名反利。",
-             "「鬼爻持世疫病纏綿」「父母官鬼持世皆可斷爲辛勤勞碌﹑疾病纏綿」"
-             "「官鬼持世﹐其病難痊」"),
+             "「鬼爻持世事难安，占身不病也遭官，财物时时忧失脱，功名最喜世当权」"),
     "妻财": ("妻财持世，财利可求、妻贤财聚；但财克父母（文书），占名望考试不利。",
-             "「但須財爻持世﹐而自彊自旺﹐多自成家」"),
+             "「财爻持世益财荣，兄若交重不可逢，更遇子孙明暗动，利身克父丧文风」"),
     "兄弟": ("兄弟为劫财之神，持世主破耗、同辈竞争，求财费力，合作合伙防损。",
-             "「兄爻持世﹐耗財之神」「兄爻持世﹐永無發福之秋」"),
+             "「兄弟持世莫求财，官兴须虑祸将来，朱雀井临防口舌，如摇必定损妻财」"
+             "（该本「井临」当为「并临」）"),
     "父母": ("父母持世主辛苦劳碌、文书操心；父母克子孙，占六畜、子嗣不利。",
-             "「父母持身辛勤勞祿」「爻遇父則克傷子女﹐一生勞碌」"),
+             "「父母持世主身劳，求嗣妾众也难招，官动财旺宜赴试，财摇谋利莫心焦，占身财动无贤妇，又恐区区寿不高」"),
 }
 
 #: 六神主事（《卜筮正宗》六神章通行归纳，各本措辞有出入，取共同核心）
@@ -156,7 +168,7 @@ def duanyu(chart: LiuYaoChart) -> str:
     ying_line = chart.lines[chart.ying - 1]
     gloss, quotes = SHI_CHI[shi_line.liu_qin]
     L.append(f"- 世爻（第{chart.shi}爻，{shi_line.gan_zhi} {shi_line.liu_qin} {shi_line.liu_shen}）："
-             f"{gloss}（《增删卜易》原文：{quotes}）")
+             f"{gloss}（《卜筮正宗》诸爻持世诀原文：{quotes}）")
     ying_kong = ying_line.gan_zhi[1] in chart.xun_kong
     L.append(f"- 应爻（第{chart.ying}爻，{ying_line.gan_zhi} {ying_line.liu_qin}）："
              f"所占之事、对方或目标之代表"
@@ -210,10 +222,54 @@ def duanyu(chart: LiuYaoChart) -> str:
     if not any(ln.is_moving for ln in chart.lines):
         L.append("- 六爻安静无动变，主所问之事平稳，以世应旺衰与用神定吉凶（静卦断法）。")
 
+    # 十八论触发性引注（《卜筮正宗》卷三）
+    lun_hits: list[str] = []
+
+    def _lun_quote(key: str, idx: int = 0, extra: str = "") -> str:
+        note = ("（第 12–15 章底本为識典古籍影印 OCR，个别字或存噪声）"
+                if key in _LUN_OCR_KEYS else "")
+        return f"《卜筮正宗》十八论·{key}：「{LUN_QUOTES[key][idx]}」{note}{extra}"
+
+    moving = [ln for ln in chart.lines if ln.is_moving]
+    jin = any((ln.gan_zhi[1], ln.bian_gan_zhi[1]) in JIN_SHEN for ln in moving)
+    tui = any((ln.bian_gan_zhi[1], ln.gan_zhi[1]) in JIN_SHEN for ln in moving)
+    if jin:
+        lun_hits.append(_lun_quote("变出进退神论第十七", 0))
+    if tui:
+        lun_hits.append(_lun_quote("变出进退神论第十七", 1))
+    yue_po = [ln for ln in chart.lines
+              if LIU_CHONG.get(chart.month_zhi) == ln.gan_zhi[1]]
+    if yue_po:
+        lun_hits.append(_lun_quote("月破论第九", 0,
+                                   f"（月建{chart.month_zhi}冲"
+                                   f"{'、'.join(ln.gan_zhi[1] for ln in yue_po)}为月破）"))
+    if kong_lines:
+        lun_hits.append(_lun_quote("旬空论第十", 0))
+    # 卦变反吟/伏吟（反吟按卦之对冲方位，伏吟按六爻地支全同）
+    btri = _GUA_TRI.get(chart.ben_gua)
+    vtri = _GUA_TRI.get(chart.bian_gua)
+    fan = bool(btri and vtri and chart.bian_gua != chart.ben_gua
+               and _CHONG_TRI[btri[1]] == vtri[1] and _CHONG_TRI[btri[0]] == vtri[0])
+    fu = all(ln.gan_zhi[1] == ln.bian_gan_zhi[1] for ln in chart.lines) \
+        and chart.bian_gua != chart.ben_gua
+    if fan:
+        lun_hits.append(_lun_quote("反吟卦定例第十一", 0,
+                                   f"（{chart.ben_gua}变{chart.bian_gua}，六爻相冲）"))
+    if fu:
+        lun_hits.append(_lun_quote("伏吟卦定例第十二", 0,
+                                   f"（{chart.ben_gua}变{chart.bian_gua}，六爻地支伏吟）"))
+    if lun_hits:
+        L.append("")
+        L.append("### 十八论引注（《卜筮正宗》卷三，触发性引用）")
+        for h in lun_hits:
+            L.append(f"- {h}")
+
     L.append("")
     L.append("> 口径提示：变爻六亲按本宫五行论（主流）；铜钱约定见上文。"
              "月建/日辰生克冲合为确定性关系事实，吉凶程度（旺相休囚）"
-             "尚需结合爻之旺衰，此处仅列关系。")
+             "尚需结合爻之旺衰，此处仅列关系。"
+             "十八论引注为触发性引用（旬空/月破/进退/反吟/伏吟），"
+             "章文逐字存档见 fortune/liuyao/shiba_lun_text.py。")
     return "\n".join(L)
 
 

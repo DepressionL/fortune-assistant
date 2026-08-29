@@ -24,6 +24,7 @@ import secrets
 
 import typer
 
+from .bazi import ditiansui as ditiansui_mod
 from .bazi import relation as relation_mod
 from .bazi import shensha as shensha_mod
 from .bazi import strength as strength_mod
@@ -43,7 +44,7 @@ from .report import svg as svg_report
 app = typer.Typer(help="fortune-assistant —— 算命辅助工具（历法换算 + 排盘 + 规则引擎）",
                   no_args_is_help=True)
 
-_VALID_SCHOOLS = ("wangshuai", "tiaohou", "tongguan", "geju")
+_VALID_SCHOOLS = ("wangshuai", "tiaohou", "tongguan", "geju", "bingyao")
 _GAN = "甲乙丙丁戊己庚辛壬癸"
 
 
@@ -139,6 +140,7 @@ def _bazi_meta(chart, config, schools: list[str] | None = None) -> dict:
         "yongshen": dataclasses.asdict(ys),
         "yongshen_all": {s: dataclasses.asdict(yongshen_mod.compute_yongshen(chart, s))
                          for s in school_list},
+        "hezhi": [dataclasses.asdict(h) for h in ditiansui_mod.hezhi(chart, st)],
     }
 
 
@@ -157,7 +159,7 @@ def bazi(
     timezone: float = typer.Option(8.0, "--timezone",
                                    help="出生记录所用标准时区（小时，东为正；默认 8=北京时间 UTC+8）"),
     school: str = typer.Option("wangshuai", "--school",
-                               help="用神流派 wangshuai|tiaohou|tongguan|geju"),
+                               help="用神流派 wangshuai|tiaohou|tongguan|geju|bingyao"),
     schools: str | None = typer.Option(None, "--schools",
                                        help="逗号分隔多流派对比，如 wangshuai,tiaohou（覆盖 --school）"),
     shensha_base: str = typer.Option("day", "--shensha-base", help="神煞基准 day|year"),
@@ -173,10 +175,10 @@ def bazi(
         school_list = [s.strip() for s in schools.split(",") if s.strip()]
         for s in school_list:
             if s not in _VALID_SCHOOLS:
-                _fail(f"--schools 含非法流派 {s!r}（wangshuai|tiaohou|tongguan|geju）")
+                _fail(f"--schools 含非法流派 {s!r}（wangshuai|tiaohou|tongguan|geju|bingyao）")
     else:
         if school not in _VALID_SCHOOLS:
-            _fail(f"--school 非法流派 {school!r}（wangshuai|tiaohou|tongguan|geju）")
+            _fail(f"--school 非法流派 {school!r}（wangshuai|tiaohou|tongguan|geju|bingyao）")
         school_list = [school]
     birth, config, nb = _resolve(year, month, day, hour, minute, gender, longitude,
                                  true_solar, day_change_hour, is_dst, timezone)
@@ -280,6 +282,10 @@ def meihua(
     else:
         _fail("请提供数字（2-3 个）或农历年月日（--lunar-year/--lunar-month/--lunar-day）")
     typer.echo(str(res))
+    typer.echo("")
+    typer.echo("《梅花易数》体用总诀（题宋·邵雍撰，传系后人托名；通行排印本）："
+               "「体克用，诸事吉；用克体，诸事凶。体生用，有耗失之患；用生体，"
+               "有进益之喜。体用比和，则百事顺遂。」")
     _echo_zhouyi(res)
     _dump_meta(meta_json, {"tool": "meihua", **dataclasses.asdict(res),
                            "wuxing": {"ti": meihua_mod.GUA_WUXING[res.ti_gua],
