@@ -1,9 +1,0 @@
-Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
-Collecting zstandard
-  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/43/a3/c6155f5c1cce691cb80dfd38627046e50af3ee9ddc5d0b45b9b063bfb8c9/zstandard-0.25.0-cp311-cp311-win_amd64.whl (506 kB)
-     ------------------------------------- 506.2/506.2 kB 33.1 MB/s eta 0:00:00
-Installing collected packages: zstandard
-Successfully installed zstandard-0.25.0
-
-[notice] A new release of pip available: 22.3.1 -> 26.2.1
-[notice] To update, run: D:\ai������\fortune-assistant\.venv\Scripts\python.exe -m pip install --upgrade pip
