@@ -45,6 +45,7 @@ class Evidence:
     field: str
     fact: str
     source: str = ""
+    stance: str = "○"     # 方向标注：+ 正面/有利，− 负面/不利，○ 中性事实（由维度规则表标注）
 
 
 @dataclass
@@ -52,8 +53,27 @@ class Conclusion:
     dim: str
     text: str
     evidence: list[Evidence] = field(default_factory=list)
-    score: float = 0.0      # 共识度：证据权重 / 可参与工具权重（0-1）
+    score: float = 0.0      # 覆盖度：提供证据的工具权重 / 可参与工具权重（0-1）
+    agreement: float | None = None   # 方向一致度：多数方向占比（0.5-1；纯事实维度为 None）
+    stance_p: int = 0       # 正面证据条数
+    stance_m: int = 0       # 负面证据条数
     scores: dict | None = None   # 可选结构化数值（如旺衰五行得分，供图形渲染）
+
+
+def _score(evidence: list[Evidence], participating: list[str],
+           weights: dict) -> tuple[float, float | None, int, int]:
+    """维度指标（确定性）：
+    - 覆盖度 = 提供证据的工具权重 / 可参与工具权重（0-1）；
+    - 方向一致度 = 带方向证据（+/−）中多数方向占比（纯事实维度为 None）。
+    """
+    tools = {e.tool for e in evidence if e.tool in participating}
+    num = sum(weights.get(t, 0.0) for t in tools)
+    den = sum(weights.get(t, 0.0) for t in participating) or 1.0
+    coverage = round(min(num / den, 1.0), 4)
+    p = sum(1 for e in evidence if e.stance == "+")
+    m = sum(1 for e in evidence if e.stance == "−")
+    agree = round(max(p, m) / (p + m), 4) if p + m > 0 else None
+    return coverage, agree, p, m
 
 
 def _cn_field(field: str) -> str:
@@ -83,6 +103,12 @@ class ComprehensiveResult:
         L += self.context.get("steps", [])
         L.append("```")
         L.append("")
+        L.append("## 指标说明（确定性计算，无生成式文本）")
+        L.append("")
+        L.append("- **覆盖度** = 该维度提供证据的工具权重 ÷ 可参与工具权重（0-1，工具缺席时下降）；")
+        L.append("- **方向一致度** = 带方向证据（正/负）中多数方向占比（0.5-1；纯事实维度无此指标）；")
+        L.append("- 各维度结论只并列「条件→证据→出处」，不做综合断言；正负方向并存时见冲突清单。")
+        L.append("")
         L.append("## 用神共识矩阵（流派 × 五行投票）")
         L.append("")
         rows = [["流派"] + list(WUXING) + ["结论"]]
@@ -98,11 +124,18 @@ class ComprehensiveResult:
             f"{w} {self.consensus.get(w, 0.0):.2f}" for w in WUXING)
             + "（各流派等权/可配权重；调候用神取《穷通宝鉴》原文提炼映射）")
         L.append("")
-        L.append("## 分维度结论（按共识度排序）")
+        L.append("## 分维度结论（按覆盖度排序）")
         L.append("")
         for c in sorted(self.conclusions, key=lambda x: -x.score):
-            band = "强" if c.score >= 0.6 else ("中" if c.score >= 0.3 else "弱")
-            L.append(f"### {c.dim}（共识度 {c.score:.2f}，{band}共识）")
+            band = "高" if c.score >= 0.6 else ("中" if c.score >= 0.3 else "低")
+            if c.agreement is not None:
+                if c.stance_p + c.stance_m > 0:
+                    agree_txt = f" · 方向一致 {c.agreement:.2f}（正 {c.stance_p} / 负 {c.stance_m}）"
+                else:
+                    agree_txt = f" · 一致度 {c.agreement:.2f}（投票口径）"
+            else:
+                agree_txt = " · 事实并列（无方向断言）"
+            L.append(f"### {c.dim}（覆盖度 {c.score:.2f}，{band}覆盖{agree_txt}）")
             L.append("")
             L.append(c.text)
             L.append("")
@@ -187,7 +220,7 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
         from ..ziwei import chart as ziwei_chart
         ziwei = ziwei_chart.build(nb, gender, config)
     except Exception as e:  # 引擎缺失等情况：如实跳过并注明
-        notes.append(f"紫微模块不可用（{e}），相关维度证据空缺，共识度按可参与工具计算。")
+        notes.append(f"紫微模块不可用（{e}），相关维度证据空缺，覆盖度按可参与工具计算。")
 
     liuyao_chart = None
     liuyao_topic = None
@@ -210,78 +243,109 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
             day_ganzhi = liuyao.get("day_ganzhi", "甲子")
         liuyao_chart = from_coins(list(backs), month_zhi, day_ganzhi, coin_back)
 
-    # ---- 3) 维度结论（证据链式，无自由文本） ----
+    # ---- 3) 维度结论（证据链式 + 覆盖度/方向一致度，无自由文本） ----
     concl: list[Conclusion] = []
 
-    # 用神共识
+    def _hz_stance(h):
+        """何知章成对条件的方向标注：命中取该句自身方向，未命中取相反方向。"""
+        pos_hit = {"富": "+", "贵": "+", "吉": "+", "寿": "+"}
+        neg_hit = {"贫": "−", "贱": "−", "凶": "−", "夭": "−"}
+        if h.key in pos_hit:
+            return "+" if h.matched else "−"
+        if h.key in neg_hit:
+            return "−" if h.matched else "+"
+        return "○"
+
+    def _mh_stance() -> str:
+        return "+" if meihua_r.relation in ("用生体", "比和") else (
+            "−" if meihua_r.relation in ("用克体", "体生用") else "○")
+
+    def _xlr_stance() -> str:
+        tag = str(xlr_r.info.get("吉凶", ""))
+        if "吉" in tag and "凶" not in tag:
+            return "+"
+        return "−" if "凶" in tag else "○"
+
+    # 用神共识（一致度=最高五行得票占比，投票口径）
     ev = [Evidence("bazi", f"{s} 流派用神", "、".join(matrix[s]),
                    "fortune/bazi/yongshen.py") for s in matrix]
+    voting = [s for s in matrix if matrix[s]]
+    vote_share = 0.0
+    if voting:
+        share = {w: sum(1 for s in voting if w in matrix[s]) / len(voting) for w in WUXING}
+        vote_share = max(share.values())
+    cov, _, _, _ = _score(ev, ["bazi"], weights)
     concl.append(Conclusion(
         "用神共识",
         f"五行加权得票：{'；'.join(f'{w} {consensus[w]:.2f}' for w in top_wx)}。"
         f"多流派共识指向 {'、'.join(top_wx[:2])}（各流派逐条结论见证据链）。",
-        ev, score=1.0))
+        ev, score=cov, agreement=round(vote_share, 4)))
 
     # 旺衰（附结构化五行得分，供图形渲染；不再用 dict 字符串展示）
     wx_max = max(st.scores, key=st.scores.get)
     wx_min = min(st.scores, key=st.scores.get)
     score_txt = " / ".join(f"{w} {st.scores[w]:.2f}" for w in WUXING)
+    ev = [Evidence("bazi", "strength",
+                   f"{score_txt}（月令旺相休囚死 × 藏干加权）",
+                   "fortune/bazi/strength.py")]
+    cov, agree, p, m = _score(ev, ["bazi"], weights)
     concl.append(Conclusion(
         "旺衰",
         f"日主{st.day_wx}{st.level}（同类 {st.same_score:.2f} / 异类 {st.diff_score:.2f}；"
         f"最旺 {wx_max} {st.scores[wx_max]:.2f}，最弱 {wx_min} {st.scores[wx_min]:.2f}）",
-        [Evidence("bazi", "strength",
-                  f"{score_txt}（月令旺相休囚死 × 藏干加权）",
-                  "fortune/bazi/strength.py")],
-        score=weights["bazi"] / weights["bazi"],
+        ev, score=cov, agreement=agree, stance_p=p, stance_m=m,
         scores={w: round(st.scores[w], 4) for w in WUXING}))
 
-    # 财
+    # 财（方向标注：富句/贫句按命中与否给正负；世爻妻财持世为正）
     cai_hits = [hit_map[k] for k in ("富", "贫")]
-    ev = [Evidence("bazi", "何知章·财维", h.reason, "《滴天髓》何知章规则映射")
-          for h in cai_hits]
+    ev = [Evidence("bazi", "何知章·财维", h.reason, "《滴天髓》何知章规则映射",
+                   stance=_hz_stance(h)) for h in cai_hits]
     ev.append(Evidence("chenggu", "判词",
                        f"{chenggu.total_str}——{chenggu.verdict or ''}",
                        "research/chenggu_table.md"))
     if liuyao_chart:
         shi = liuyao_chart.lines[liuyao_chart.shi - 1]
         ev.append(Evidence("liuyao", "世爻六亲", f"{shi.liu_qin}持世（{shi.gan_zhi}）",
-                           "《卜筮正宗》诸爻持世诀"))
+                           "《卜筮正宗》诸爻持世诀",
+                           stance="+" if shi.liu_qin == "妻财" else "○"))
+    part = ["bazi", "chenggu"] + (["liuyao"] if liuyao else [])
+    cov, agree, p, m = _score(ev, part, weights)
     concl.append(Conclusion("财", "见证据链（各工具财维事实并列，不做综合断言）。",
-                            ev,
-                            score=round((weights["bazi"] + weights["chenggu"]
-                                         + (weights["liuyao"] if liuyao_chart else 0))
-                                        / (weights["bazi"] + weights["chenggu"]
-                                           + (weights["liuyao"] if liuyao else 0)), 4)))
+                            ev, score=cov, agreement=agree, stance_p=p, stance_m=m))
 
-    # 事业
+    # 事业（贵/贱方向标注）
     guan_hits = [hit_map[k] for k in ("贵", "贱")]
-    ev = [Evidence("bazi", "何知章·官维", h.reason, "《滴天髓》何知章规则映射")
-          for h in guan_hits]
+    ev = [Evidence("bazi", "何知章·官维", h.reason, "《滴天髓》何知章规则映射",
+                   stance=_hz_stance(h)) for h in guan_hits]
     ev.append(Evidence("bazi", f"流年{anchor}{ln.gan_zhi}", f"流年干十神：{ln.shi_shen}；"
                        + ("；".join(ln.facts) or "与原局及大运无冲合刑害"),
                        "fortune/bazi/liunian.py"))
     if ziwei:
-        g = next(p for p in ziwei.palaces if p.name == "官禄")
+        g = next(p2 for p2 in ziwei.palaces if p2.name == "官禄")
         ev.append(Evidence("ziwei", "官禄宫",
                            f"{g.gan_zhi} 主星 {'、'.join(g.star_list()) or '空宫'}（大限 {g.da_xian}）",
                            "x_iztro 引擎输出"))
-    concl.append(Conclusion("事业", "见证据链（官杀状态/流年十神/官禄宫事实并列）。", ev,
-                            score=round((weights["bazi"] + (weights["ziwei"] if ziwei else 0))
-                                        / (weights["bazi"] + (weights["ziwei"] if ziwei else 0)), 4)))
+    part = ["bazi"] + (["ziwei"] if ziwei else [])
+    cov, agree, p, m = _score(ev, part, weights)
+    concl.append(Conclusion("事业", "见证据链（官杀状态/流年十神/官禄宫事实并列）。",
+                            ev, score=cov, agreement=agree, stance_p=p, stance_m=m))
 
     # 婚恋（男命以财为妻、女命以官为夫 —— 取用说明，见 research 口径）
     if gender == "男":
-        ev = [Evidence("bazi", "妻星", hit_map["富"].reason, "财为妻（子平通行取用）")]
+        ev = [Evidence("bazi", "妻星", hit_map["富"].reason, "财为妻（子平通行取用）",
+                       stance=_hz_stance(hit_map["富"]))]
     else:
-        ev = [Evidence("bazi", "夫星", hit_map["贵"].reason, "官为夫（子平通行取用）")]
+        ev = [Evidence("bazi", "夫星", hit_map["贵"].reason, "官为夫（子平通行取用）",
+                       stance=_hz_stance(hit_map["贵"]))]
     if ziwei:
-        g = next(p for p in ziwei.palaces if p.name == "夫妻")
+        g = next(p2 for p2 in ziwei.palaces if p2.name == "夫妻")
         ev.append(Evidence("ziwei", "夫妻宫",
                            f"{g.gan_zhi} 主星 {'、'.join(g.star_list()) or '空宫'}（大限 {g.da_xian}）",
                            "x_iztro 引擎输出"))
-    concl.append(Conclusion("婚恋", "见证据链（妻/夫星状态与夫妻宫事实并列）。", ev,
-                            score=round(weights["bazi"] / weights["bazi"], 4)))
+    part = ["bazi"] + (["ziwei"] if ziwei else [])
+    cov, agree, p, m = _score(ev, part, weights)
+    concl.append(Conclusion("婚恋", "见证据链（妻/夫星状态与夫妻宫事实并列）。",
+                            ev, score=cov, agreement=agree, stance_p=p, stance_m=m))
 
     # 性格（仅盘面事实：日主/神煞/命宫主星）
     ev = [Evidence("bazi", "日主与旺衰", f"{st.day_wx}日主·{st.level}", "fortune/bazi/strength.py")]
@@ -292,42 +356,44 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
         ev.append(Evidence("ziwei", "命宫",
                            f"{ming.gan_zhi} 主星 {'、'.join(ming.star_list()) or '空宫'}（借对宫）",
                            "x_iztro 引擎输出"))
+    part = ["bazi"] + (["ziwei"] if ziwei else [])
+    cov, agree, p, m = _score(ev, part, weights)
     concl.append(Conclusion("性格", "见证据链（日主/神煞/命宫盘面事实并列，无性格断言）。",
-                            ev, score=1.0))
+                            ev, score=cov, agreement=agree, stance_p=p, stance_m=m))
 
     # 健康
     ev = [Evidence("bazi", "五行强弱", f"最旺 {max(st.scores, key=st.scores.get)}、"
                    f"最弱 {min(st.scores, key=st.scores.get)}（五行偏枯之盘面事实，"
                    "对应脏腑属通行象意，本报告不展开）", "fortune/bazi/strength.py")]
     if ziwei:
-        g = next(p for p in ziwei.palaces if p.name == "疾厄")
+        g = next(p2 for p2 in ziwei.palaces if p2.name == "疾厄")
         ev.append(Evidence("ziwei", "疾厄宫",
                            f"{g.gan_zhi} 主星 {'、'.join(g.star_list()) or '空宫'}",
                            "x_iztro 引擎输出"))
-    concl.append(Conclusion("健康", "见证据链（盘面五行强弱与疾厄宫事实并列）。", ev,
-                            score=round(weights["bazi"] / weights["bazi"], 4)))
+    part = ["bazi"] + (["ziwei"] if ziwei else [])
+    cov, agree, p, m = _score(ev, part, weights)
+    concl.append(Conclusion("健康", "见证据链（盘面五行强弱与疾厄宫事实并列）。",
+                            ev, score=cov, agreement=agree, stance_p=p, stance_m=m))
 
-    # 近运（流年 + 梅花 + 小六壬 + 六爻）
+    # 近运（流年 + 梅花 + 小六壬 + 六爻；梅花/小六壬带方向）
     ev = [Evidence("bazi", f"流年{anchor}{ln.gan_zhi}", f"十神：{ln.shi_shen}；"
                    + ("；".join(ln.facts) or "与原局及大运无冲合刑害"), "fortune/bazi/liunian.py"),
           Evidence("bazi", f"流年{anchor + 1}{ln2.gan_zhi}", f"十神：{ln2.shi_shen}；"
                    + ("；".join(ln2.facts) or "与原局及大运无冲合刑害"), "fortune/bazi/liunian.py"),
           Evidence("meihua", "体用", f"{meihua_r.ben_gua} 动{meihua_r.moving_line}爻，"
                    f"体{meihua_r.ti_gua}用{meihua_r.yong_gua}：{meihua_r.relation}（{meihua_r.verdict}）",
-                   "《梅花易数》体用总诀"),
+                   "《梅花易数》体用总诀", stance=_mh_stance()),
           Evidence("xiaoliuren", "落宫", f"{xlr_r.path()} → {xlr_r.palace}（{xlr_r.info['吉凶']}）；"
-                   f"断语：{xlr_r.info['断语']}", "research/xiaoliuren.md"),
+                   f"断语：{xlr_r.info['断语']}", "research/xiaoliuren.md", stance=_xlr_stance()),
           Evidence("meihua", "口径", meihua_r.caliber, ""),
           Evidence("xiaoliuren", "口径", xlr_r.caliber, "")]
     if liuyao_chart:
         ev.append(Evidence("liuyao", "世爻", f"{liuyao_chart.lines[liuyao_chart.shi - 1].liu_qin}持世",
                            "《卜筮正宗》"))
-    score = round((weights["bazi"] + weights["meihua"] + weights["xiaoliuren"]
-                   + (weights["liuyao"] if liuyao_chart else 0))
-                  / (weights["bazi"] + weights["meihua"] + weights["xiaoliuren"]
-                     + (weights["liuyao"] if liuyao else 0)), 4)
+    part = ["bazi", "meihua", "xiaoliuren"] + (["liuyao"] if liuyao else [])
+    cov, agree, p, m = _score(ev, part, weights)
     concl.append(Conclusion("近运", "见证据链（流年关系事实/梅花体用/小六壬落宫并列）。",
-                            ev, score=score))
+                            ev, score=cov, agreement=agree, stance_p=p, stance_m=m))
 
     # ---- 4) 冲突清单 ----
     if hit_map["富"].matched and hit_map["贫"].matched:
@@ -344,6 +410,11 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
     if xlr_r.palace == "空亡" and meihua_r.relation in ("比和", "用生体"):
         conflicts.append("小六壬落空亡（凶）与梅花体用比和/用生体（吉）方向不一致"
                          "（两术独立计算，如实并列）。")
+    for c in concl:
+        if c.stance_p > 0 and c.stance_m > 0:
+            conflicts.append(
+                f"{c.dim}维方向不一致：正面证据 {c.stance_p} 条 / 负面证据 {c.stance_m} 条"
+                f"（方向一致度 {c.agreement:.2f}，并列呈现，不调和）。")
 
     return ComprehensiveResult(
         context=ctx_mod_build_context(birth, config),

@@ -150,7 +150,8 @@ const FIXTURES = {
         scores: { 木: 2.6, 火: 3.04, 土: 0.36, 金: 0.0, 水: 0.1 },
         evidence: [{ tool: "bazi", field: "strength", fact: "木 2.60 / 火 3.04 / 土 0.36",
                      source: "fortune/bazi/strength.py" }] },
-      { dim: "近运", text: "见证据链（流年关系事实并列）。", score: 0.7,
+      { dim: "近运", text: "见证据链（流年关系事实并列）。", score: 0.7, agreement: 0.5,
+        stance_p: 1, stance_m: 1,
         evidence: [{ tool: "bazi", field: "流年2026丙午", fact: "劫财", source: "liunian.py" }] },
     ],
     conflicts: ["用神流派分歧：tongguan 的用神不含最高得票五行 水（并列展示，不调和）。"],
@@ -222,10 +223,16 @@ for (const l of ["旺衰", "调候", "通关", "格局", "病药"]) {
 }
 // 旺衰卡带结构化 scores 时应渲染五行条形图（而非 JSON 文本）
 let barRows = 0;
+const badgeTexts = new Set();
 walk(comp, (el) => {
   if (el.type === "div" && String(el.props.className ?? "").includes("ft-bar-row")) barRows++;
+  if (el.type === "span" && String(el.props.className ?? "").includes("ft-pill")) {
+    badgeTexts.add(String(el.children ?? ""));
+  }
 });
 assert.equal(barRows, 5, "旺衰 scores 应渲染为 5 行五行条形图");
+assert.ok([...badgeTexts].some((t) => t.startsWith("覆盖度")), "结论卡应有覆盖度徽章");
+assert.ok([...badgeTexts].some((t) => t.startsWith("方向一致")), "带方向证据的结论应有方向一致徽章");
 
 // meta 缺失时回退不抛错
 for (const [name] of Object.entries(FIXTURES)) {

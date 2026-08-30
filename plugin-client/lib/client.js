@@ -1130,15 +1130,22 @@
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h(ConsensusHeat, { d }),
+          h("div", { className: "ft-legend" },
+            "覆盖度=提供证据的工具权重占比；方向一致=带方向证据中多数方向占比（纯事实维度无此指标）。"),
           concl.map((c, i) => {
-            const band = c.score >= 0.6 ? "强" : c.score >= 0.3 ? "中" : "弱";
+            const band = c.score >= 0.6 ? "高" : c.score >= 0.3 ? "中" : "低";
             const isOpen = !!open[c.dim];
+            const agree = c.agreement;
             return h("div", { key: c.dim, className: "ft-sec" },
               h("div", { className: "ft-head" },
                 h("span", { className: "ft-title" }, c.dim),
                 h("span", {
-                  className: `ft-pill ${band === "强" ? "ft-ok" : band === "中" ? "ft-run" : "ft-warn"}`,
-                }, `共识度 ${(c.score ?? 0).toFixed(2)}（${band}共识）`),
+                  className: `ft-pill ${band === "高" ? "ft-ok" : band === "中" ? "ft-run" : "ft-warn"}`,
+                }, `覆盖度 ${(c.score ?? 0).toFixed(2)}（${band}覆盖）`),
+                agree != null
+                  ? h("span", {
+                      className: `ft-pill ${agree >= 0.6 ? "ft-ok" : "ft-warn"}`,
+                    }, `方向一致 ${agree.toFixed(2)}`) : null,
                 (c.evidence && c.evidence.length)
                   ? h("button", { type: "button", className: "ft-btn",
                       "aria-expanded": String(isOpen),
