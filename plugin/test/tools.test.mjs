@@ -23,7 +23,7 @@ function makeSpawn(calls) {
   };
 }
 
-const SEVEN_TOOLS = [
+const NINE_TOOLS = [
   "fortune_bazi",
   "fortune_ziwei",
   "fortune_chenggu",
@@ -31,12 +31,14 @@ const SEVEN_TOOLS = [
   "fortune_meihua",
   "fortune_liuyao",
   "fortune_solar_info",
+  "fortune_context",
+  "fortune_comprehensive",
 ];
 
-test("注册 7 个工具且参数 schema 根为 object（DSH 方言要求）", () => {
+test("注册 9 个工具且参数 schema 根为 object（DSH 方言要求）", () => {
   const ctx = makeCtx();
   apply(ctx, { projectDir: "D:/proj", pythonBin: "py" });
-  assert.deepEqual(ctx.registered.map((t) => t.name), SEVEN_TOOLS);
+  assert.deepEqual(ctx.registered.map((t) => t.name), NINE_TOOLS);
   for (const t of ctx.registered) {
     assert.equal(t.parameters.type, "object");
     assert.ok(t.output.schema, `tool ${t.name} 缺 output.schema`);
@@ -75,7 +77,10 @@ test("execute 从输出中拆出内嵌 meta（标记后 JSON，模型面文本�
   const calls = [];
   const spawn = (bin, args, opts) => {
     calls.push({ bin, args, opts });
-    return { status: 0, stdout: raw, stderr: "" };
+    // 第二次调用（--no-true-solar 口径预计算）返回无 meta 输出，模拟 CLI 正常
+    return calls.length === 1
+      ? { status: 0, stdout: raw, stderr: "" }
+      : { status: 0, stdout: "alt ok", stderr: "" };
   };
   apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn });
   const t = ctx.registered.find((x) => x.name === "fortune_bazi");
@@ -83,6 +88,10 @@ test("execute 从输出中拆出内嵌 meta（标记后 JSON，模型面文本�
   assert.equal(res.ok, true);
   assert.equal(res.output, "# 命盘报告\n\n正文内容", "模型面文本应剔除标记与 JSON");
   assert.deepEqual(res.meta, { tool: "bazi", chart: { pillars: [] } });
+  // 口径预计算：默认真太阳时 → 附带钟表时对照（无 meta 时安全跳过）
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].args.includes("--no-true-solar"));
+  assert.equal(res.meta.alternates, undefined);
   // argv 不再带 --meta-json（meta 随身，不依赖临时文件）
   assert.ok(!calls[0].args.includes("--meta-json"));
 });
@@ -159,10 +168,79 @@ test("fortune_ziwei 必带庚年四化/闰月开关", async () => {
   apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn(calls) });
   const t = ctx.registered.find((x) => x.name === "fortune_ziwei");
   await t.execute({ year: 2000, month: 2, day: 5, hour: 9,
-                    gengSihua: "tianxiang", leapMode: "mid_split" });
+                    gengSihua: "tianxiang", leapMode: "mid_split", interpret: true });
   const args = calls[0].args;
   assert.ok(args.includes("--geng-sihua") && args[args.indexOf("--geng-sihua") + 1] === "tianxiang");
   assert.ok(args.includes("--leap-mode") && args[args.indexOf("--leap-mode") + 1] === "mid_split");
+  assert.ok(args.includes("--interpret"));
+});
+
+test("fortune_bazi 口径预计算：默认真太阳时附带钟表时对照 meta", async () => {
+  const ctx = makeCtx();
+  const calls = [];
+  const spawn = (bin, args, opts) => {
+    calls.push({ bin, args, opts });
+    const tag = args.includes("--no-true-solar") ? "clock" : "solar";
+    return { status: 0, stdout: `===DSH_META_JSON===\n{"tool":"bazi","tag":"${tag}"}`, stderr: "" };
+  };
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn });
+  const t = ctx.registered.find((x) => x.name === "fortune_bazi");
+  const res = await t.execute({ year: 1990, month: 6, day: 15, hour: 13 });
+  assert.equal(calls.length, 2);
+  assert.equal(res.meta.tag, "solar");
+  assert.deepEqual(res.meta.alternates, { clock: { tool: "bazi", tag: "clock" } });
+  // trueSolar=false 时不再预计算（避免重复）
+  const ctx2 = makeCtx();
+  const calls2 = [];
+  apply(ctx2, { projectDir: "D:/proj", pythonBin: "py",
+                spawn: (bin, args) => { calls2.push(args); return { status: 0, stdout: "ok", stderr: "" }; } });
+  const t2 = ctx2.registered.find((x) => x.name === "fortune_bazi");
+  await t2.execute({ year: 1990, month: 6, day: 15, hour: 13, trueSolar: false });
+  assert.equal(calls2.length, 1);
+});
+
+test("fortune_liuyao --date 自动推导月建日辰转发", async () => {
+  const ctx = makeCtx();
+  const calls = [];
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn(calls) });
+  const t = ctx.registered.find((x) => x.name === "fortune_liuyao");
+  const res = await t.execute({ backs: [2, 3, 1, 0, 3, 2], date: "2026-08-29",
+                                topic: "求财", question: "近期财运" });
+  assert.equal(res.ok, true);
+  const args = calls[0].args;
+  assert.ok(args.includes("--date") && args[args.indexOf("--date") + 1] === "2026-08-29");
+  assert.ok(!args.includes("--month-zhi") && !args.includes("--day-ganzhi"));
+  assert.ok(args.includes("--topic") && args[args.indexOf("--topic") + 1] === "求财");
+  assert.ok(args.includes("--question") && args[args.indexOf("--question") + 1] === "近期财运");
+});
+
+test("fortune_liuyao 无 date 且无月建日辰时显式报错", async () => {
+  const ctx = makeCtx();
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn([]) });
+  const t = ctx.registered.find((x) => x.name === "fortune_liuyao");
+  const res = await t.execute({ backs: [1, 1, 1, 1, 1, 1] });
+  assert.equal(res.ok, false);
+  assert.ok(res.error.includes("date"));
+});
+
+test("fortune_context 与 fortune_comprehensive 转发", async () => {
+  const ctx = makeCtx();
+  const calls = [];
+  apply(ctx, { projectDir: "D:/proj", pythonBin: "py", spawn: makeSpawn(calls) });
+  const tc = ctx.registered.find((x) => x.name === "fortune_context");
+  await tc.execute({ year: 1990, month: 6, day: 15, hour: 13, lng: 112.5 });
+  assert.equal(calls[0].args[2], "context");
+  assert.ok(calls[0].args.includes("--lng") && calls[0].args[calls[0].args.indexOf("--lng") + 1] === "112.5");
+  const tm = ctx.registered.find((x) => x.name === "fortune_comprehensive");
+  await tm.execute({ year: 1990, month: 6, day: 15, hour: 13, anchorYear: 2026,
+                     liuyaoBacks: [2, 3, 1, 0, 3, 2], liuyaoDate: "2026-08-29",
+                     liuyaoTopic: "求财", coinBack: "yang" });
+  const args = calls[1].args;
+  assert.equal(args[2], "comprehensive");
+  assert.ok(args.includes("--anchor-year") && args[args.indexOf("--anchor-year") + 1] === "2026");
+  assert.ok(args.includes("--liuyao-backs") && args[args.indexOf("--liuyao-backs") + 1] === "2,3,1,0,3,2");
+  assert.ok(args.includes("--liuyao-date") && args[args.indexOf("--liuyao-date") + 1] === "2026-08-29");
+  assert.ok(args.includes("--liuyao-topic") && args[args.indexOf("--liuyao-topic") + 1] === "求财");
 });
 
 test("fortune_meihua 数字起卦（2 个数）", async () => {

@@ -247,6 +247,47 @@
         "white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;",
         "margin:6px 0 0;padding:6px 8px;border-radius:6px;",
         "background:var(--dsw-alias-bg-layer-2)}",
+        // 口径分段器
+        ".ft-seg{display:inline-flex;border:1px solid var(--dsw-alias-border-l2);",
+        "border-radius:8px;overflow:hidden;margin-top:6px}",
+        ".ft-seg>button{font:inherit;font-size:11px;line-height:20px;padding:0 10px;border:0;",
+        "background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer}",
+        ".ft-seg>button[aria-pressed=true]{background:var(--dsw-alias-interactive-bg-active);",
+        "color:var(--dsw-alias-brand-primary)}",
+        // 何知章成对条
+        ".ft-pair{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}",
+        ".ft-pair-side{flex:1;min-width:220px;border:1px solid var(--dsw-alias-border-l2);",
+        "border-radius:10px;padding:8px 10px;background:var(--dsw-alias-bg-base);",
+        "animation:ft-rise .25s ease-out both;animation-delay:calc(var(--n,0)*70ms)}",
+        ".ft-pair-side.ft-pair-hit{border-color:var(--dsw-alias-state-warn-primary)}",
+        ".ft-pair-line{font-size:11px;color:var(--dsw-alias-label-secondary)}",
+        ".ft-pair-reason{font-size:10.5px;color:var(--dsw-alias-label-tertiary);",
+        "margin-top:4px;line-height:1.6}",
+        // 流年时间轴
+        ".ft-tl{display:flex;gap:6px;overflow-x:auto;padding:8px 2px;margin-top:8px}",
+        ".ft-tl-y{flex:none;min-width:76px;text-align:center;border:1px solid var(--dsw-alias-border-l2);",
+        "border-radius:10px;padding:6px 4px;background:var(--dsw-alias-bg-base);cursor:pointer;",
+        "transition:border-color .15s ease;animation:ft-pop .2s both;",
+        "animation-delay:calc(var(--n,0)*45ms)}",
+        ".ft-tl-y.ft-sel{border-color:var(--dsw-alias-brand-primary);",
+        "box-shadow:0 0 0 1px var(--dsw-alias-brand-primary)}",
+        ".ft-tl-y.ft-hit{border-color:var(--dsw-alias-state-warn-secondary)}",
+        ".ft-tl-yr{font-size:9.5px;color:var(--dsw-alias-label-tertiary)}",
+        ".ft-tl-gz{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);margin-top:2px}",
+        ".ft-tl-ss{font-size:10px;color:var(--dsw-alias-label-tertiary);margin-top:2px}",
+        // 共识热力矩阵
+        ".ft-heat{display:grid;grid-template-columns:minmax(64px,auto) repeat(5,1fr) minmax(64px,auto);",
+        "gap:3px;margin-top:8px;font-size:11px}",
+        ".ft-heat-c{position:relative;text-align:center;padding:6px 2px;border-radius:6px;",
+        "background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l2);",
+        "color:var(--dsw-alias-label-secondary);overflow:hidden}",
+        ".ft-heat-c.ft-heat-h{color:var(--dsw-alias-label-tertiary)}",
+        ".ft-heat-bar{position:absolute;left:0;right:0;bottom:0;",
+        "background:var(--dsw-alias-brand-primary);opacity:.18}",
+        // 证据链
+        ".ft-ev{margin-top:6px}",
+        ".ft-ev-item{font-size:11px;color:var(--dsw-alias-label-secondary);",
+        "margin:3px 0;line-height:1.6}",
         "@media (prefers-reduced-motion: reduce){",
         ".ft-node,.ft-pillar,.ft-gua-card,.ft-yao,.ft-w-chip,.ft-step,.ft-palace,",
         ".ft-pill,.ft-chip,.ft-total-v,.ft-zw-cell,.ft-glyph-yang,.ft-glyph-yin>i,.ft-bar>i,",
@@ -347,12 +388,90 @@
             + `日主${st.day_wx ?? "?"}：同类 ${st.same_score?.toFixed?.(2) ?? "?"}`
             + ` / 异类 ${st.diff_score?.toFixed?.(2) ?? "?"}`));
       }
+      // 多流派用神（yongshen_all 子页签：旺衰/调候/通关/格局/病药逐派渲染）
+      function YongshenMulti({ d }) {
+        const all = d && d.yongshen_all && typeof d.yongshen_all === "object"
+          ? d.yongshen_all : null;
+        const keys = all ? Object.keys(all) : [];
+        const [s, setS] = useState(keys[0] ?? "");
+        if (!keys.length) return null;
+        const ys = all[s] ?? {};
+        return h("div", { className: "ft-sec" },
+          h("div", { className: "ft-sec-h" }, "用神（多流派对比，规则引擎参考）"),
+          h("div", { className: "ft-tabs", role: "tablist" },
+            keys.map((k) => h("button", {
+              key: k, type: "button", className: "ft-tab", role: "tab",
+              "aria-selected": String(s === k), onClick: () => setS(k),
+            }, k))),
+          h("div", { className: "ft-chips" },
+            h("span", { className: "ft-pill ft-ok" },
+              `用 ${(ys.yong_wuxing ?? []).join("、") || "—"}`),
+            ys.ji_wuxing && ys.ji_wuxing.length
+              ? h("span", { className: "ft-pill ft-warn" },
+                  `忌 ${ys.ji_wuxing.join("、")}`) : null),
+          h("div", { className: "ft-legend" },
+            (ys.conclusions ?? []).slice(0, 4).map((c2, i) =>
+              h("div", { key: i }, c2))),
+          h("div", { className: "ft-legend" },
+            "各流派结论可能相互矛盾，均为经验规则，并列展示仅供参考。"));
+      }
+
+      // 何知章条件核查（4 维成对条：同维强弱两面并排）
+      function HezhiPairs({ d }) {
+        const pairs = d && d.hezhi_pairs ? d.hezhi_pairs : [];
+        if (!pairs.length) return null;
+        return h("div", { className: "ft-sec" },
+          h("div", { className: "ft-sec-h" }, "何知章条件核查（4 维成对，非吉凶总断）"),
+          pairs.map((p, i) => h("div", { key: p.dim, className: "ft-pair", style: { "--n": i } },
+            (p.items ?? []).map((it) => h("div", {
+              key: it.key,
+              className: `ft-pair-side${it.matched ? " ft-pair-hit" : ""}`,
+            },
+              h("div", { className: "ft-pair-line" },
+                `${it.line}（${it.matched ? "命中" : "未命中"}）`),
+              h("div", { className: "ft-pair-reason" }, it.reason))))));
+      }
+
+      // 大运流年时间轴（点年份看确定性关系事实）
+      function LiunianTimeline({ d }) {
+        const rows = d && d.liunian ? d.liunian : [];
+        const [sel, setSel] = useState(0);
+        if (!rows.length) return null;
+        const r = rows[Math.min(sel, rows.length - 1)];
+        return h("div", { className: "ft-sec" },
+          h("div", { className: "ft-sec-h" },
+            `大运流年速览（自 ${d.liunian_anchor ?? ""} 年起；确定性关系事实，不断吉凶）`),
+          h("div", { className: "ft-tl", role: "tablist" },
+            rows.map((x, i) => h("button", {
+              key: x.year, type: "button", role: "tab",
+              className: `ft-tl-y${i === sel ? " ft-sel" : ""}`
+                + `${x.facts && x.facts.length ? " ft-hit" : ""}`,
+              style: { "--n": i }, onClick: () => setSel(i),
+              "aria-selected": String(i === sel),
+              title: x.facts ? x.facts.join("；") : "与原局及大运无冲合刑害",
+            },
+              h("div", { className: "ft-tl-yr" }, x.year),
+              h("div", { className: "ft-tl-gz" }, x.gan_zhi),
+              h("div", { className: "ft-tl-ss" },
+                `${x.shi_shen}${x.dayun ? ` · ${x.dayun}` : ""}`)))),
+          h("div", { className: "ft-panel" },
+            h("div", { className: "ft-panel-h" },
+              `${r.year} ${r.gan_zhi} · ${r.shi_shen} · 纳音${r.na_yin ?? ""}`
+              + `${r.dayun ? ` · 大运${r.dayun}` : ""}`),
+            h("div", { className: "ft-panel-row" },
+              (r.facts ?? []).length ? r.facts.join("；")
+                : "与原局及大运无冲合刑害。")));
+      }
+
       function BaziView({ block }) {
         ensureStyle();
-        const d = metaData(block);
+        const base = metaData(block);
+        const [cal, setCal] = useState("solar");
         const [tab, setTab] = useState("pillars");
         const [sel, setSel] = useState(2);
-        if (!d) return h(ToolRow, { block, title: "八字排盘" });
+        const alt = base && base.alternates ? base.alternates.clock : null;
+        const d = cal === "clock" && alt ? alt : base;
+        if (!base) return h(ToolRow, { block, title: "八字排盘" });
         const c = d.chart ?? {};
         const st = d.strength ?? {};
         const ys = d.yongshen ?? {};
@@ -374,6 +493,8 @@
           { id: "shensha", label: `神煞(${ssHits.length})` },
           { id: "relation", label: `关系(${relCount})` },
           { id: "yongshen", label: "用神" },
+          { id: "hezhi", label: "何知章" },
+          { id: "liunian", label: "流年" },
         ];
         const selP = (c.pillars ?? [])[sel] ?? null;
         return h("div", { className: "ft-node", style: { "--n": 0 } },
@@ -382,6 +503,13 @@
             pills,
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
+          alt
+            ? h("div", { className: "ft-seg", role: "group", "aria-label": "时辰口径切换" },
+                h("button", { type: "button", "aria-pressed": String(cal === "solar"),
+                  onClick: () => setCal("solar") }, "真太阳时"),
+                h("button", { type: "button", "aria-pressed": String(cal === "clock"),
+                  onClick: () => setCal("clock") }, "钟表时"))
+            : null,
           h(TabBar, { tabs, active: tab, onSelect: setTab }),
           tab === "pillars"
             ? h("div", { className: "ft-pillars" },
@@ -443,16 +571,24 @@
                   }, `${r.name} ${(r.positions ?? []).join("/")}`))))
             : null,
           tab === "yongshen"
-            ? h("div", { className: "ft-sec" },
-                h("div", { className: "ft-sec-h" }, `用神（${ys.school}，规则引擎参考）`),
-                h("div", { className: "ft-chips" },
-                  h("span", { className: "ft-pill ft-ok" },
-                    `用 ${(ys.yong_wuxing ?? []).join("、") || "—"}`),
-                  ys.ji_wuxing && ys.ji_wuxing.length
-                    ? h("span", { className: "ft-pill ft-warn" },
-                        `忌 ${ys.ji_wuxing.join("、")}`) : null),
-                h("div", { className: "ft-legend" },
-                  (ys.conclusions ?? []).slice(0, 3).join("；")))
+            ? (d.yongshen_all
+                ? h(YongshenMulti, { d })
+                : h("div", { className: "ft-sec" },
+                    h("div", { className: "ft-sec-h" }, `用神（${ys.school}，规则引擎参考）`),
+                    h("div", { className: "ft-chips" },
+                      h("span", { className: "ft-pill ft-ok" },
+                        `用 ${(ys.yong_wuxing ?? []).join("、") || "—"}`),
+                      ys.ji_wuxing && ys.ji_wuxing.length
+                        ? h("span", { className: "ft-pill ft-warn" },
+                            `忌 ${ys.ji_wuxing.join("、")}`) : null),
+                    h("div", { className: "ft-legend" },
+                      (ys.conclusions ?? []).slice(0, 3).join("；"))))
+            : null,
+          tab === "hezhi"
+            ? h(HezhiPairs, { d })
+            : null,
+          tab === "liunian"
+            ? h(LiunianTimeline, { d })
             : null,
           h(ContentText, { block }));
       }
@@ -583,6 +719,20 @@
                     key: i, className: `ft-chip${String(p).includes("[破格]") ? " ft-warn" : ""}`,
                   }, p))))
             : null,
+          d.pattern_review && d.pattern_review.length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "格局复核（展示性核对，判定以引擎为准）"),
+                d.pattern_review.map((p, i) => h("div", {
+                  key: `r${i}`, className: "ft-pair-reason",
+                }, p)))
+            : null,
+          d.interpret_glance && d.interpret_glance.length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "解读速览（检索式，非推断）"),
+                d.interpret_glance.map((p, i) => h("div", {
+                  key: `g${i}`, className: "ft-pair-reason",
+                }, p)))
+            : null,
           h(ContentText, { block, max: 1500 })));
       }
 
@@ -657,6 +807,17 @@
                     ? `动爻（${selL.value === 9 ? "老阳○" : "老阴×"}），变卦中此爻阴阳翻转。`
                     : "静爻，不变。"}`))
             : null,
+          (d.topic && d.topic !== "综合" && d.topic_focus)
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" },
+                  `占题：${d.topic}${d.question ? `「${d.question}」` : ""}`
+                  + `${d.date ? `（起卦 ${d.date}，自动推导月建日辰）` : ""}`),
+                h("pre", { className: "ft-out" }, d.topic_focus))
+            : null,
+          d.caliber
+            ? h("div", { className: "ft-meta" },
+                h("span", { className: "ft-caption" }, d.caliber))
+            : null,
           h(ContentText, { block }));
       }
 
@@ -694,6 +855,9 @@
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "梅花易数"),
             h("span", { className: "ft-caption" }, d.method ?? ""),
+            d.caliber
+              ? h("span", { className: "ft-pill" }, d.caliber)
+              : null,
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h("div", { className: "ft-gua-row" },
@@ -756,6 +920,9 @@
           h("div", { className: "ft-head" },
             h("span", { className: "ft-title" }, "袁天罡称骨"),
             h("span", { className: "ft-caption" }, "通行男命版 · 仅作文化参考"),
+            d.caliber
+              ? h("span", { className: "ft-pill" }, d.caliber)
+              : null,
             !isSettled(block)
               ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
           h("div", { key: `w${play}`, className: "ft-w-row" },
@@ -827,6 +994,9 @@
             h("span", { className: "ft-title" }, "小六壬"),
             h("span", { className: "ft-caption" },
               `农历${d.lunar_month}月${d.lunar_day}日 ${d.hour_zhi}时`),
+            d.caliber
+              ? h("span", { className: "ft-pill" }, d.caliber)
+              : null,
             h("button", { type: "button", className: "ft-btn", onClick: replay,
               "aria-busy": String(playing) },
               playing ? "推演中…" : "▶ 逐步推演"),
@@ -895,6 +1065,119 @@
           h(ContentText, { block, max: 800 }));
       }
 
+      // ------------------------------------------------------------------
+      // 综合分析视图：共识热力矩阵 + 维度结论卡 + 证据链折叠 + 冲突清单
+      // ------------------------------------------------------------------
+      function ConsensusHeat({ d }) {
+        const schools = d && d.matrix ? Object.keys(d.matrix) : [];
+        if (!schools.length) return null;
+        const WX = ["木", "火", "土", "金", "水"];
+        const cell = (key, text, extra) =>
+          h("div", { key, className: `ft-heat-c${extra ?? ""}` }, text);
+        return h("div", { className: "ft-sec" },
+          h("div", { className: "ft-sec-h" }, "用神共识矩阵（流派 × 五行投票）"),
+          h("div", { className: "ft-heat" },
+            cell("h0", "流派", " ft-heat-h"),
+            WX.map((w) => cell(`h${w}`, w, " ft-heat-h")),
+            cell("hc", "结论", " ft-heat-h"),
+            schools.map((s) => [
+              cell(`s${s}`, s),
+              ...WX.map((w) => {
+                const hit = (d.matrix[s] ?? []).includes(w);
+                return h("div", { key: `${s}${w}`, className: "ft-heat-c" },
+                  hit ? h("div", { className: "ft-heat-bar", style: { height: "100%" } }) : null,
+                  hit ? "✓" : "");
+              }),
+              cell(`c${s}`, (d.matrix[s] ?? []).join("、") || "—"),
+            ])),
+          h("div", { className: "ft-legend" },
+            "五行加权得票：" + WX.map((w) =>
+              `${w} ${((d.consensus ?? {})[w] ?? 0).toFixed(2)}`).join("；")
+            + "（tiaohou 用神取《穷通宝鉴》原文提炼映射）"));
+      }
+
+      function ComprehensiveView({ block }) {
+        ensureStyle();
+        const d = metaData(block);
+        const [open, setOpen] = useState({});
+        if (!d) return h(ToolRow, { block, title: "综合分析" });
+        const concl = (d.conclusions ?? []).slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+        return h("div", { className: "ft-node", style: { "--n": 0 } },
+          h("div", { className: "ft-head" },
+            h("span", { className: "ft-title" }, "综合分析（无 LLM 聚合）"),
+            !isSettled(block)
+              ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
+          h(ConsensusHeat, { d }),
+          concl.map((c, i) => {
+            const band = c.score >= 0.6 ? "强" : c.score >= 0.3 ? "中" : "弱";
+            const isOpen = !!open[c.dim];
+            return h("div", { key: c.dim, className: "ft-sec" },
+              h("div", { className: "ft-head" },
+                h("span", { className: "ft-title" }, c.dim),
+                h("span", {
+                  className: `ft-pill ${band === "强" ? "ft-ok" : band === "中" ? "ft-run" : "ft-warn"}`,
+                }, `共识度 ${(c.score ?? 0).toFixed(2)}（${band}共识）`),
+                (c.evidence && c.evidence.length)
+                  ? h("button", { type: "button", className: "ft-btn",
+                      "aria-expanded": String(isOpen),
+                      onClick: () => setOpen((o) => ({ ...o, [c.dim]: !o[c.dim] })) },
+                      isOpen ? "收起证据链" : "展开证据链") : null),
+              h("div", { className: "ft-pair-reason" }, c.text),
+              isOpen && c.evidence
+                ? h("div", { className: "ft-panel" },
+                    c.evidence.map((e, k) => h("div", { key: k, className: "ft-ev-item" },
+                      `${e.tool}｜${e.field}｜${e.fact}${e.source ? `｜出处：${e.source}` : ""}`)))
+                : null);
+          }),
+          d.conflicts && d.conflicts.length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "冲突清单（如实呈现，不调和）"),
+                d.conflicts.map((c2, i) => h("div", {
+                  key: i, className: "ft-pair-reason",
+                }, `⚠ ${c2}`)))
+            : null,
+          d.notes && d.notes.length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "备注"),
+                d.notes.map((n2, i) => h("div", { key: i, className: "ft-pair-reason" }, n2)))
+            : null,
+          h(ContentText, { block, max: 3000 }));
+      }
+
+      // ------------------------------------------------------------------
+      // BirthContext 视图：历法事实上下文（口径声明块）
+      // ------------------------------------------------------------------
+      function ContextView({ block }) {
+        ensureStyle();
+        const d = metaData(block);
+        if (!d) return h(ToolRow, { block, title: "历法上下文" });
+        return h("div", { className: "ft-node", style: { "--n": 0 } },
+          h("div", { className: "ft-head" },
+            h("span", { className: "ft-title" }, "历法上下文（BirthContext）"),
+            h("span", { className: "ft-pill" }, `校正后 ${d.solar ?? ""}`),
+            !isSettled(block)
+              ? h("span", { className: "ft-pill ft-run" }, "执行中…") : null),
+          h("div", { className: "ft-chips" },
+            (d.eight_char ?? []).map((p, i) => h("span", {
+              key: i, className: `ft-chip${i === 2 ? " ft-ok" : ""}`,
+            }, p))),
+          h("div", { className: "ft-meta" },
+            h("span", { className: "ft-caption" },
+              `钟表时支 ${d.time_zhi_clock ?? "—"} · 校正后时支 ${d.time_zhi_solar ?? "—"}`),
+            d.true_solar_shift_min != null
+              ? h("span", { className: "ft-caption" },
+                  ` · 真太阳时校正 ${Number(d.true_solar_shift_min).toFixed(1)} 分`)
+              : null),
+          (d.steps ?? []).length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "归一化步骤"),
+                d.steps.map((s2, i) => h("div", {
+                  key: i, className: "ft-pair-reason",
+                }, s2)))
+            : null,
+          h(ContentText, { block, max: 800 }));
+      }
+
       const TOOLVIEWS = {
         fortune_bazi: BaziView,
         fortune_ziwei: ZiweiView,
@@ -903,6 +1186,8 @@
         fortune_chenggu: ChengguView,
         fortune_xiaoliuren: XiaoliurenView,
         fortune_solar_info: SolarInfoView,
+        fortune_context: ContextView,
+        fortune_comprehensive: ComprehensiveView,
       };
 
       const inject = ["slots"];

@@ -5,8 +5,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-// ---- 假 react ----
+// ---- 假 react（支持函数组件求值，覆盖组件型视图如 ConsensusHeat/ToolRow） ----
 const h = (type, props, ...children) => {
+  if (typeof type === "function") {
+    return type({ ...(props ?? {}), children });
+  }
   const el = { type, props: props ?? {}, children: children.flat(Infinity) };
   return el;
 };
@@ -41,7 +44,7 @@ const ctx = {
   },
 };
 clientExports.apply(ctx);
-assert.equal(registrations.length, 7, "应注册 7 个 toolview");
+assert.equal(registrations.length, 9, "应注册 9 个 toolview");
 const viewOf = (name) => registrations.find(([k]) => k === name)[1];
 
 // ---- 真实形状的 meta 数据 ----
@@ -128,6 +131,27 @@ const FIXTURES = {
     pillars: ["甲辰", "丙寅", "甲辰", "庚午"],
     jieqi: [{ name: "立春", time: "2024-02-04 16:26:53" }],
   },
+  fortune_context: {
+    tool: "context", solar: "1990-06-15 13:29:44", gender: "男",
+    eight_char: ["庚午", "壬午", "辛亥", "乙未"],
+    time_zhi_clock: "未", time_zhi_solar: "未", true_solar_shift_min: -0.3,
+    steps: ["输入：公历 1990-06-15 13:30:00", "真太阳时校正（东经120°）：偏移 -0.3 分钟"],
+  },
+  fortune_comprehensive: {
+    tool: "comprehensive",
+    matrix: { wangshuai: ["水", "土", "金"], tiaohou: ["金"], tongguan: [],
+              geju: ["水", "火"], bingyao: ["水"] },
+    consensus: { 木: 0, 火: 0.12, 土: 0.08, 金: 0.33, 水: 0.46 },
+    conclusions: [
+      { dim: "用神共识", text: "五行加权得票：水 0.46；金 0.33……", score: 1.0,
+        evidence: [{ tool: "bazi", field: "wangshuai 流派用神", fact: "水、土、金",
+                     source: "fortune/bazi/yongshen.py" }] },
+      { dim: "近运", text: "见证据链（流年关系事实并列）。", score: 0.7,
+        evidence: [{ tool: "bazi", field: "流年2026丙午", fact: "劫财", source: "liunian.py" }] },
+    ],
+    conflicts: ["用神流派分歧：tongguan 的用神不含最高得票五行 水（并列展示，不调和）。"],
+    notes: [],
+  },
 };
 
 // ---- 渲染冒烟 ----
@@ -138,6 +162,7 @@ function walk(el, fn) {
 }
 
 let rendered = 0, interactive = 0;
+const INTERACTIVE_EXEMPT = new Set(["fortune_context", "fortune_solar_info"]);   // 纯数据徽章视图，无按钮
 for (const [name, data] of Object.entries(FIXTURES)) {
   const View = viewOf(name);
   const block = { kind: "tool-result", meta: { ok: true, tool: name, data }, content: [] };
@@ -148,11 +173,13 @@ for (const [name, data] of Object.entries(FIXTURES)) {
     assert.fail(`${name} 渲染抛错: ${e.message}`);
   }
   rendered++;
+  let n = 0;
   walk(tree, (el) => {
     if (el.props && (typeof el.props.onClick === "function"
-      || typeof el.props.onSelect === "function")) interactive++;
+      || typeof el.props.onSelect === "function")) n++;
   });
-  assert.ok(interactive > 0, `${name} 未发现交互回调`);
+  interactive += n;
+  if (!INTERACTIVE_EXEMPT.has(name)) assert.ok(n > 0, `${name} 未发现交互回调`);
 }
 
 // 关键结构断言
@@ -171,10 +198,22 @@ walk(zw, (el) => {
 assert.equal(gridCount, 1, "应有宫格容器");
 assert.ok(palCount === 12 && gridCount === 1);
 
+// 综合分析视图：共识矩阵 + 证据链折叠按钮 + 冲突清单
+const comp = viewOf("fortune_comprehensive")({ block: { kind: "tool-result",
+  meta: { ok: true, tool: "fortune_comprehensive", data: FIXTURES.fortune_comprehensive }, content: [] } });
+let heatCells = 0, evBtns = 0;
+walk(comp, (el) => {
+  if (el.type === "div" && String(el.props.className ?? "").includes("ft-heat-c")) heatCells++;
+  if (el.type === "button" && /证据链/.test(String(el.children ?? ""))) evBtns++;
+});
+assert.ok(heatCells >= 7, `共识矩阵应有表头 7 格起（实际 ${heatCells}）`);
+assert.equal(evBtns, 2, "有证据链的结论应各有展开按钮");
+
 // meta 缺失时回退不抛错
 for (const [name] of Object.entries(FIXTURES)) {
   const View = viewOf(name);
   View({ block: { kind: "tool-result", meta: null, content: [] } });
 }
 
-console.log(`渲染冒烟通过：${rendered}/7 视图渲染成功，交互回调存在，12 宫盘结构正确，meta 缺失回退正常`);
+console.log(`渲染冒烟通过：${rendered}/9 视图渲染成功，交互回调存在，12 宫盘结构正确，`
+  + `共识矩阵 ${heatCells} 格 + ${evBtns} 证据链按钮，meta 缺失回退正常`);

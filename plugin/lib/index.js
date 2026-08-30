@@ -185,6 +185,9 @@ export function apply(ctx, config = {}) {
       schools: STRING("逗号分隔的多流派一次对比（覆盖 school），如 \"wangshuai,tiaohou\""),
       shenshaBase: ENUM("神煞索引基准：day(日干/日支,子平主流,默认)|year(年干/年支,古法)",
                         ["day", "year"]),
+      years: INT("大运流年速览年数（自锚年起；0=关闭，默认 10）"),
+      anchorYear: INT("流年速览锚年（默认排盘时刻当前年；测试可固定以保持确定性）"),
+      hezhiLegacy: BOOL("何知章旧版逐句列表+全量岁运表格式（默认关=4 维成对呈现）"),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_bazi") },
     timeoutMs: BAZI_TIMEOUT,
@@ -194,7 +197,20 @@ export function apply(ctx, config = {}) {
       if (args.school) argv.push("--school", args.school);
       if (args.schools) argv.push("--schools", args.schools);
       if (args.shenshaBase) argv.push("--shensha-base", args.shenshaBase);
-      return call(argv, BAZI_TIMEOUT);
+      if (args.years !== undefined && args.years !== null) argv.push("--years", String(args.years));
+      if (args.anchorYear !== undefined && args.anchorYear !== null) {
+        argv.push("--anchor-year", String(args.anchorYear));
+      }
+      if (args.hezhiLegacy) argv.push("--hezhi-legacy");
+      const primary = await call(argv, BAZI_TIMEOUT);
+      // 口径预计算：真太阳时为主结果时，同步附「钟表时」对照（客户端口径分段器零计算切换）
+      if (primary.ok && primary.meta && args.trueSolar !== false) {
+        const alt = await call([...argv, "--no-true-solar"], BAZI_TIMEOUT);
+        if (alt.ok && alt.meta) {
+          primary.meta.alternates = { clock: alt.meta };
+        }
+      }
+      return primary;
     },
   });
 
@@ -212,6 +228,7 @@ export function apply(ctx, config = {}) {
                       ["tiantong", "tianxiang"]),
       leapMode: ENUM("闰月口径：as_month(按当月,默认)|mid_split(十五分界,iztro 默认)",
                      ["as_month", "mid_split"]),
+      interpret: BOOL("附检索式解读速览（默认关，无推断；只重组盘面事实）"),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_ziwei") },
     timeoutMs: ZIWEI_TIMEOUT,
@@ -220,6 +237,7 @@ export function apply(ctx, config = {}) {
       pushBirth(argv, args);
       if (args.gengSihua) argv.push("--geng-sihua", args.gengSihua);
       if (args.leapMode) argv.push("--leap-mode", args.leapMode);
+      if (args.interpret) argv.push("--interpret");
       return call(argv, ZIWEI_TIMEOUT);
     },
   });
@@ -307,15 +325,28 @@ export function apply(ctx, config = {}) {
       + "动变。表依《增删卜易》《卜筮正宗》核验；铜钱「背为阳/阴」约定可配。",
     parameters: toParametersSchema({
       backs: ARR_INT("六次投掷中「背」的个数（0-3），自下而上，如 [2,3,1,0,3,2]；random=true 时可省略"),
-      monthZhi: STRING("月建地支（子丑寅卯辰巳午未申酉戌亥）", true),
-      dayGanzhi: STRING("日辰干支（如 甲子）", true),
+      monthZhi: STRING("月建地支（子丑寅卯辰巳午未申酉戌亥；与 date 二选一）"),
+      dayGanzhi: STRING("日辰干支（如 甲子；与 date 二选一）"),
+      date: STRING("起卦日 YYYY-MM-DD（默认今天；自动推月建与日辰，节气口径）"),
+      topic: ENUM("占问主题：求财/合伙/事业/官非/婚恋/健康/考试/文书/出行/综合",
+                  ["求财", "合伙", "事业", "官非", "婚恋", "健康", "考试", "文书", "出行", "综合"]),
+      question: STRING("占题自由文本（仅回显记录，不参与计算）"),
       coinBack: ENUM("铜钱约定：yang(背=阳=3,主流,默认)|yin(背=阴)", ["yang", "yin"]),
       random: BOOL("不提供 backs 时随机模拟三枚铜钱掷六次（每枚独立 50% 出背）"),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_liuyao") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
-      const argv = ["liuyao", "--month-zhi", args.monthZhi, "--day-ganzhi", args.dayGanzhi];
+      const argv = ["liuyao"];
+      if (args.date) {
+        argv.push("--date", args.date);
+      } else {
+        if (!args.monthZhi || !args.dayGanzhi) {
+          return { ok: false, exitCode: -1, output: "",
+                   error: "请提供 date（YYYY-MM-DD 自动推导）或 monthZhi+dayGanzhi" };
+        }
+        argv.push("--month-zhi", args.monthZhi, "--day-ganzhi", args.dayGanzhi);
+      }
       if (Array.isArray(args.backs) && args.backs.length > 0) {
         argv.push("--backs", args.backs.join(","));
       } else if (args.random) {
@@ -325,6 +356,8 @@ export function apply(ctx, config = {}) {
                  error: "请提供 backs（六次背数）或设 random=true 随机起卦" };
       }
       if (args.coinBack) argv.push("--coin-back", args.coinBack);
+      if (args.topic) argv.push("--topic", args.topic);
+      if (args.question) argv.push("--question", args.question);
       return call(argv, SHORT_TIMEOUT);
     },
   });
@@ -350,6 +383,55 @@ export function apply(ctx, config = {}) {
       if (args.hour !== undefined && args.hour !== null) argv.push("-H", String(args.hour));
       if (args.minute !== undefined && args.minute !== null) argv.push("-M", String(args.minute));
       return call(argv, SHORT_TIMEOUT);
+    },
+  });
+
+  ctx.tools.register({
+    name: "fortune_context",
+    description:
+      "BirthContext：跨工具共享的历法事实上下文（JSON）。只含历法事实"
+      + "（公历/农历/干支/时支两口径/真太阳时校正/归一化步骤），不含吉凶结论；"
+      + "供各术数工具联动复用与一致性校验（防错配）。",
+    parameters: toParametersSchema({ ...BIRTH_SPEC }),
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_context") },
+    timeoutMs: SHORT_TIMEOUT,
+    async execute(args) {
+      const argv = ["context"];
+      pushBirth(argv, args);
+      return call(argv, SHORT_TIMEOUT);
+    },
+  });
+
+  ctx.tools.register({
+    name: "fortune_comprehensive",
+    description:
+      "综合分析（无 LLM 聚合）：确定性规则引擎——用神共识矩阵（流派×五行投票）、"
+      + "分维度结论（含证据链与共识度分档）、冲突清单（如实并列不调和）。"
+      + "同输入同输出，零生成式文本；全部内容为传统命理文化参考。",
+    parameters: toParametersSchema({
+      ...BIRTH_SPEC,
+      anchorYear: INT("近运锚年（默认排盘时刻当前年；测试可固定）"),
+      liuyaoBacks: ARR_INT("六爻背数（0-3 × 6，自下而上；缺省不占六爻）"),
+      liuyaoDate: STRING("六爻起卦日 YYYY-MM-DD（默认今天）"),
+      liuyaoTopic: ENUM("六爻占问主题（缺省综合）",
+                        ["求财", "合伙", "事业", "官非", "婚恋", "健康", "考试", "文书", "出行", "综合"]),
+      coinBack: ENUM("铜钱约定：yang(主流)|yin", ["yang", "yin"]),
+    }),
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_comprehensive") },
+    timeoutMs: ZIWEI_TIMEOUT,
+    async execute(args) {
+      const argv = ["comprehensive"];
+      pushBirth(argv, args);
+      if (args.anchorYear !== undefined && args.anchorYear !== null) {
+        argv.push("--anchor-year", String(args.anchorYear));
+      }
+      if (Array.isArray(args.liuyaoBacks) && args.liuyaoBacks.length > 0) {
+        argv.push("--liuyao-backs", args.liuyaoBacks.join(","));
+        if (args.liuyaoDate) argv.push("--liuyao-date", args.liuyaoDate);
+        if (args.liuyaoTopic) argv.push("--liuyao-topic", args.liuyaoTopic);
+      }
+      if (args.coinBack) argv.push("--coin-back", args.coinBack);
+      return call(argv, ZIWEI_TIMEOUT);
     },
   });
 }

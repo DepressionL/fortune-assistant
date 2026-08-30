@@ -456,7 +456,9 @@ def ziwei(
                 f.write(svg)
             typer.echo(f"紫微盘已写入 {out_svg}")
         _dump_meta(meta_json, {"tool": "ziwei", **dataclasses.asdict(zc),
-                               "pattern_review": ziwei_chart.pattern_review(zc)})
+                               "pattern_review": ziwei_chart.pattern_review(zc),
+                               "interpret_glance": ziwei_chart.interpret_glance(zc)
+                               if config.ziwei_interpret else []})
     except ImportError as e:
         typer.echo(f"紫微模块不可用：{e}", err=True)
         raise typer.Exit(1)

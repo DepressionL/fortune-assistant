@@ -109,3 +109,10 @@
 1. 工具 schema 暴露：`fortune_liuyao` 增 `topic/question/date`；`fortune_bazi` 增 `years/anchorYear/hezhiLegacy`；`fortune_ziwei` 增 `interpret`；`fortune_context`/`fortune_comprehensive` 新工具注册；misc 三工具增 `lng/tzHours/trueSolar` 与 `format=json`（透传 CLI）。
 2. 渲染器按 §1 槽位实现组件；验收用「契约 + 样例 JSON」（每工具一份 `--meta-json` 样例）。
 3. e2e 断言：Markdown 回退与组件内容逐字一致（抽样 3 条）；动效关闭后信息不缺失。
+
+## 5. 实施状态（2026-08-29 更新）
+
+- ✅ 数据侧全部就绪：`hezhi_pairs/liunian/yongshen_all/alternates(口径预计算)/topic_focus/pattern_review/interpret_glance/caliber/matrix/consensus/conclusions/conflicts`；
+- ✅ 客户端渲染器（`plugin-client/lib/client.js`）已实现 §1 全部槽位组件 + `fortune_context`/`fortune_comprehensive` 两个新视图，`dsh.client.immediately=true` 随页加载；`test/smoke.mjs`（9 视图 + 共识矩阵/证据链断言）全绿；
+- ✅ 宿主插件（`plugin/lib/index.js`）注册 9 工具（含 2 新工具）、bazi 口径预计算（真太阳时主结果 + 钟表时对照）、六爻 date/topic 转发；`test/tools.test.mjs` 19 项全绿；
+- ⏳ DSH 运行实例：客户端 bundle 已被宿主 watcher 自动重建（manifest rev 已更新），**刷新页面即可生效**；`fortune_context`/`fortune_comprehensive` 两个新工具的注册属宿主侧，若会话工具列表未更新则需重启 `dsh web`。
