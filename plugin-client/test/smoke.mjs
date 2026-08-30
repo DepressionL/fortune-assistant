@@ -146,6 +146,10 @@ const FIXTURES = {
       { dim: "用神共识", text: "五行加权得票：水 0.46；金 0.33……", score: 1.0,
         evidence: [{ tool: "bazi", field: "wangshuai 流派用神", fact: "水、土、金",
                      source: "fortune/bazi/yongshen.py" }] },
+      { dim: "旺衰", text: "日主火身强（同类 5.64 / 异类 0.46）", score: 1.0,
+        scores: { 木: 2.6, 火: 3.04, 土: 0.36, 金: 0.0, 水: 0.1 },
+        evidence: [{ tool: "bazi", field: "strength", fact: "木 2.60 / 火 3.04 / 土 0.36",
+                     source: "fortune/bazi/strength.py" }] },
       { dim: "近运", text: "见证据链（流年关系事实并列）。", score: 0.7,
         evidence: [{ tool: "bazi", field: "流年2026丙午", fact: "劫财", source: "liunian.py" }] },
     ],
@@ -202,12 +206,26 @@ assert.ok(palCount === 12 && gridCount === 1);
 const comp = viewOf("fortune_comprehensive")({ block: { kind: "tool-result",
   meta: { ok: true, tool: "fortune_comprehensive", data: FIXTURES.fortune_comprehensive }, content: [] } });
 let heatCells = 0, evBtns = 0;
+const cellTexts = new Set();
 walk(comp, (el) => {
-  if (el.type === "div" && String(el.props.className ?? "").includes("ft-heat-c")) heatCells++;
+  if (el.type === "div" && String(el.props.className ?? "").includes("ft-heat-c")) {
+    heatCells++;
+    cellTexts.add(String(el.children ?? ""));
+  }
   if (el.type === "button" && /证据链/.test(String(el.children ?? ""))) evBtns++;
 });
 assert.ok(heatCells >= 7, `共识矩阵应有表头 7 格起（实际 ${heatCells}）`);
-assert.equal(evBtns, 2, "有证据链的结论应各有展开按钮");
+assert.equal(evBtns, 3, "有证据链的结论应各有展开按钮");
+// 流派标签必须为中文（内部键拼音只作 key）
+for (const l of ["旺衰", "调候", "通关", "格局", "病药"]) {
+  assert.ok(cellTexts.has(l), `共识矩阵应有中文流派标签「${l}」`);
+}
+// 旺衰卡带结构化 scores 时应渲染五行条形图（而非 JSON 文本）
+let barRows = 0;
+walk(comp, (el) => {
+  if (el.type === "div" && String(el.props.className ?? "").includes("ft-bar-row")) barRows++;
+});
+assert.equal(barRows, 5, "旺衰 scores 应渲染为 5 行五行条形图");
 
 // meta 缺失时回退不抛错
 for (const [name] of Object.entries(FIXTURES)) {

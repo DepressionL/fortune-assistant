@@ -284,14 +284,25 @@
         ".ft-heat-c.ft-heat-h{color:var(--dsw-alias-label-tertiary)}",
         ".ft-heat-bar{position:absolute;left:0;right:0;bottom:0;",
         "background:var(--dsw-alias-brand-primary);opacity:.18}",
-        // 证据链
+        // 证据链条目卡（展开后结构化渲染 + 逐条错峰入场动效）
         ".ft-ev{margin-top:6px}",
-        ".ft-ev-item{font-size:11px;color:var(--dsw-alias-label-secondary);",
-        "margin:3px 0;line-height:1.6}",
+        ".ft-ev-item{display:flex;flex-direction:column;gap:3px;border:1px solid var(--dsw-alias-border-l2);",
+        "border-radius:8px;padding:6px 8px;margin:5px 0;background:var(--dsw-alias-bg-layer-1);",
+        "animation:ft-rise .24s ease-out both;animation-delay:calc(var(--n,0)*60ms)}",
+        ".ft-ev-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}",
+        ".ft-ev-tool{font-size:10px;line-height:16px;padding:0 6px;border-radius:7px;",
+        "border:1px solid var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}",
+        ".ft-ev-tool.ft-ok{color:var(--dsw-alias-state-success-primary);",
+        "border-color:var(--dsw-alias-state-success-secondary)}",
+        ".ft-ev-tool.ft-warn{color:var(--dsw-alias-state-warn-primary);",
+        "border-color:var(--dsw-alias-state-warn-secondary)}",
+        ".ft-ev-field{font-size:11px;color:var(--dsw-alias-label-secondary)}",
+        ".ft-ev-fact{font-size:11.5px;color:var(--dsw-alias-label-primary);line-height:1.6;white-space:pre-wrap}",
+        ".ft-ev-src{font-size:10px;color:var(--dsw-alias-label-tertiary)}",
         "@media (prefers-reduced-motion: reduce){",
         ".ft-node,.ft-pillar,.ft-gua-card,.ft-yao,.ft-w-chip,.ft-step,.ft-palace,",
         ".ft-pill,.ft-chip,.ft-total-v,.ft-zw-cell,.ft-glyph-yang,.ft-glyph-yin>i,.ft-bar>i,",
-        ".ft-panel{animation:none}",
+        ".ft-panel,.ft-ev-item{animation:none}",
         ".ft-bar>i{transition:none}.ft-zw-cell{opacity:1}}",
       ].join("");
 
@@ -367,6 +378,17 @@
         正印: "生我·异性（学业、母亲、庇荫）", 偏印: "生我·同性（冷门学识）",
       };
       const WX_ORDER = ["木", "火", "土", "金", "水"];
+      // 用神流派显示名（内部键为拼音，UI 一律中文）
+      const SCHOOL_LABEL = { wangshuai: "旺衰", tiaohou: "调候", tongguan: "通关",
+                             geju: "格局", bingyao: "病药" };
+      // 证据链工具徽章色档（语义 token，无颜色字面量）
+      const TOOL_PILL = { bazi: "ft-ok", ziwei: "ft-run", liuyao: "ft-warn",
+                          meihua: "ft-run", xiaoliuren: "ft-warn", chenggu: "ft-ok",
+                          comprehensive: "ft-run", context: "ft-ok" };
+      // 证据链工具徽章中文显示名（悬停 title 保留原名）
+      const TOOL_LABEL = { bazi: "八字", ziwei: "紫微", liuyao: "六爻", meihua: "梅花",
+                           chenggu: "称骨", xiaoliuren: "小六壬",
+                           comprehensive: "综合分析", context: "历法上下文" };
       function WuxingPanel({ st }) {
         const max = Math.max(0.01, ...Object.values(st.scores ?? {}));
         return h("div", { className: "ft-sec" },
@@ -402,7 +424,7 @@
             keys.map((k) => h("button", {
               key: k, type: "button", className: "ft-tab", role: "tab",
               "aria-selected": String(s === k), onClick: () => setS(k),
-            }, k))),
+            }, SCHOOL_LABEL[k] ?? k))),
           h("div", { className: "ft-chips" },
             h("span", { className: "ft-pill ft-ok" },
               `用 ${(ys.yong_wuxing ?? []).join("、") || "—"}`),
@@ -1081,7 +1103,7 @@
             WX.map((w) => cell(`h${w}`, w, " ft-heat-h")),
             cell("hc", "结论", " ft-heat-h"),
             schools.map((s) => [
-              cell(`s${s}`, s),
+              cell(`s${s}`, SCHOOL_LABEL[s] ?? s),
               ...WX.map((w) => {
                 const hit = (d.matrix[s] ?? []).includes(w);
                 return h("div", { key: `${s}${w}`, className: "ft-heat-c" },
@@ -1093,7 +1115,7 @@
           h("div", { className: "ft-legend" },
             "五行加权得票：" + WX.map((w) =>
               `${w} ${((d.consensus ?? {})[w] ?? 0).toFixed(2)}`).join("；")
-            + "（tiaohou 用神取《穷通宝鉴》原文提炼映射）"));
+            + "（各流派等权/可配权重；调候用神取《穷通宝鉴》原文提炼映射）"));
       }
 
       function ComprehensiveView({ block }) {
@@ -1123,10 +1145,39 @@
                       onClick: () => setOpen((o) => ({ ...o, [c.dim]: !o[c.dim] })) },
                       isOpen ? "收起证据链" : "展开证据链") : null),
               h("div", { className: "ft-pair-reason" }, c.text),
+              c.scores
+                ? h("div", { className: "ft-sec" },
+                    WX_ORDER.map((w, i) => h("div", {
+                      key: w, className: "ft-bar-row", style: { "--n": i },
+                    },
+                      h("span", { className: "ft-bar-l" }, w),
+                      h("div", { className: "ft-bar" },
+                        h("i", { style: {
+                          width: `${Math.max(3, ((c.scores[w] ?? 0)
+                            / Math.max(0.01, ...Object.values(c.scores))) * 100)}%`,
+                          opacity: `${1 - i * 0.12}`,
+                        } })),
+                      h("span", { className: "ft-bar-v" },
+                        `${(c.scores[w] ?? 0).toFixed(2)}`))))
+                : null,
               isOpen && c.evidence
                 ? h("div", { className: "ft-panel" },
-                    c.evidence.map((e, k) => h("div", { key: k, className: "ft-ev-item" },
-                      `${e.tool}｜${e.field}｜${e.fact}${e.source ? `｜出处：${e.source}` : ""}`)))
+                    c.evidence.map((e, k) => h("div", {
+                      key: k, className: "ft-ev-item", style: { "--n": k },
+                    },
+                      h("div", { className: "ft-ev-head" },
+                        h("span", {
+                          className: `ft-ev-tool ${TOOL_PILL[e.tool] ?? ""}`,
+                          title: e.tool ?? "",
+                        }, TOOL_LABEL[e.tool] ?? e.tool ?? "—"),
+                        h("span", { className: "ft-ev-field" },
+                          (e.field ?? "").replace(
+                            /wangshuai|tiaohou|tongguan|geju|bingyao/g,
+                            (m) => SCHOOL_LABEL[m] ?? m))),
+                      h("div", { className: "ft-ev-fact" }, e.fact ?? ""),
+                      e.source
+                        ? h("div", { className: "ft-ev-src" }, `出处：${e.source}`)
+                        : null)))
                 : null);
           }),
           d.conflicts && d.conflicts.length
@@ -1134,7 +1185,9 @@
                 h("div", { className: "ft-sec-h" }, "冲突清单（如实呈现，不调和）"),
                 d.conflicts.map((c2, i) => h("div", {
                   key: i, className: "ft-pair-reason",
-                }, `⚠ ${c2}`)))
+                }, `⚠ ${String(c2).replace(
+                  /wangshuai|tiaohou|tongguan|geju|bingyao/g,
+                  (m) => SCHOOL_LABEL[m] ?? m)}`)))
             : null,
           d.notes && d.notes.length
             ? h("div", { className: "ft-sec" },

@@ -27,6 +27,13 @@ from ..misc import meihua as meihua_mod
 from ..misc import xiaoliuren as xlr_mod
 
 SCHOOLS = ("wangshuai", "tiaohou", "tongguan", "geju", "bingyao")
+#: 流派中文显示名（内部键保持拼音，报告与 UI 一律中文）
+SCHOOLS_CN = {"wangshuai": "旺衰", "tiaohou": "调候", "tongguan": "通关",
+              "geju": "格局", "bingyao": "病药"}
+#: 证据链工具中文显示名（出处路径保留原样，仅徽章名中文化）
+TOOLS_CN = {"bazi": "八字", "ziwei": "紫微", "liuyao": "六爻", "meihua": "梅花",
+            "chenggu": "称骨", "xiaoliuren": "小六壬",
+            "comprehensive": "综合分析", "context": "历法上下文"}
 DEFAULT_WEIGHTS = {"bazi": 0.35, "ziwei": 0.25, "meihua": 0.12,
                    "xiaoliuren": 0.10, "liuyao": 0.10, "chenggu": 0.08}
 WUXING = ("木", "火", "土", "金", "水")
@@ -46,6 +53,13 @@ class Conclusion:
     text: str
     evidence: list[Evidence] = field(default_factory=list)
     score: float = 0.0      # 共识度：证据权重 / 可参与工具权重（0-1）
+    scores: dict | None = None   # 可选结构化数值（如旺衰五行得分，供图形渲染）
+
+
+def _cn_field(field: str) -> str:
+    """证据链字段名中的流派拼音 → 中文显示名。"""
+    import re as _re
+    return _re.sub("|".join(SCHOOLS), lambda m: SCHOOLS_CN.get(m.group(0), m.group(0)), field)
 
 
 @dataclass
@@ -76,13 +90,13 @@ class ComprehensiveResult:
             yw = self.matrix.get(s)
             if yw is None:
                 continue
-            rows.append([s] + ["✓" if w in yw else "" for w in WUXING]
+            rows.append([SCHOOLS_CN.get(s, s)] + ["✓" if w in yw else "" for w in WUXING]
                         + ["、".join(yw)])
         L.append(_table(rows[0], rows[1:]))
         L.append("")
         L.append("五行加权得票：" + "；".join(
             f"{w} {self.consensus.get(w, 0.0):.2f}" for w in WUXING)
-            + "（各流派等权/可配权重；tiaohou 用神取《穷通宝鉴》原文提炼映射）")
+            + "（各流派等权/可配权重；调候用神取《穷通宝鉴》原文提炼映射）")
         L.append("")
         L.append("## 分维度结论（按共识度排序）")
         L.append("")
@@ -96,7 +110,7 @@ class ComprehensiveResult:
                 L.append("<details><summary>证据链（工具 → 字段 → 事实）</summary>")
                 L.append("")
                 L.append("\n".join(
-                    f"- **{e.tool}**｜{e.field}｜{e.fact}"
+                    f"- **{TOOLS_CN.get(e.tool, e.tool)}**｜{_cn_field(e.field)}｜{e.fact}"
                     + (f"｜出处：{e.source}" if e.source else "")
                     for e in c.evidence))
                 L.append("</details>")
@@ -208,14 +222,19 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
         f"多流派共识指向 {'、'.join(top_wx[:2])}（各流派逐条结论见证据链）。",
         ev, score=1.0))
 
-    # 旺衰
+    # 旺衰（附结构化五行得分，供图形渲染；不再用 dict 字符串展示）
+    wx_max = max(st.scores, key=st.scores.get)
+    wx_min = min(st.scores, key=st.scores.get)
+    score_txt = " / ".join(f"{w} {st.scores[w]:.2f}" for w in WUXING)
     concl.append(Conclusion(
         "旺衰",
         f"日主{st.day_wx}{st.level}（同类 {st.same_score:.2f} / 异类 {st.diff_score:.2f}；"
-        f"最旺 {max(st.scores, key=st.scores.get)} {st.scores[max(st.scores, key=st.scores.get)]:.2f}，"
-        f"最弱 {min(st.scores, key=st.scores.get)} {st.scores[min(st.scores, key=st.scores.get)]:.2f}）",
-        [Evidence("bazi", "strength", f"得分 {st.scores}", "fortune/bazi/strength.py")],
-        score=weights["bazi"] / weights["bazi"]))
+        f"最旺 {wx_max} {st.scores[wx_max]:.2f}，最弱 {wx_min} {st.scores[wx_min]:.2f}）",
+        [Evidence("bazi", "strength",
+                  f"{score_txt}（月令旺相休囚死 × 藏干加权）",
+                  "fortune/bazi/strength.py")],
+        score=weights["bazi"] / weights["bazi"],
+        scores={w: round(st.scores[w], 4) for w in WUXING}))
 
     # 财
     cai_hits = [hit_map[k] for k in ("富", "贫")]
@@ -320,8 +339,8 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
         agree = {s for s in matrix if any(w in matrix[s] for w in top_wx[:1])}
         if len(agree) < len(matrix):
             conflicts.append(
-                f"用神流派分歧：{'、'.join(sorted(set(matrix) - agree))} 的用神不含"
-                f"最高得票五行 {top_wx[0]}（各流派结论并列展示，不调和）。")
+                f"用神流派分歧：{'、'.join(SCHOOLS_CN.get(s, s) for s in sorted(set(matrix) - agree))}"
+                f" 的用神不含最高得票五行 {top_wx[0]}（各流派结论并列展示，不调和）。")
     if xlr_r.palace == "空亡" and meihua_r.relation in ("比和", "用生体"):
         conflicts.append("小六壬落空亡（凶）与梅花体用比和/用生体（吉）方向不一致"
                          "（两术独立计算，如实并列）。")
