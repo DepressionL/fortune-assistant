@@ -363,6 +363,87 @@ export function apply(ctx, config = {}) {
   });
 
   ctx.tools.register({
+    name: "fortune_liuren",
+    description:
+      "大六壬起课排盘：月将加时→天地盘→四课→三传（九宗门：贼克/比用/涉害/遥克/昴星/"
+      + "别责/八专/伏吟/返吟）→十二天将（贵人昼夜顺逆）→遁干旬空六亲，附年命行年。"
+      + "规则逐字依《六壬大全》（明·郭载騋校，四库全书本）卷一入手法与卷二十二将释；"
+      + "断语只陈述排盘事实与规则结论，不做吉凶总断。",
+    parameters: toParametersSchema({
+      year: INT("公历年（占时）", true),
+      month: INT("公历月（1-12）", true),
+      day: INT("公历日（1-31）", true),
+      hour: INT("占时（0-23，钟表时间）", true),
+      minute: INT("分（默认 0）"),
+      gender: STRING("性别（男/女，行年用；缺省不算年命）"),
+      benMingZhi: STRING("本命地支（生年支，如丑；行年用）"),
+      age: INT("虚岁（行年用）"),
+    }),
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_liuren") },
+    timeoutMs: SHORT_TIMEOUT,
+    async execute(args) {
+      const argv = ["liuren", "-y", String(args.year),
+                    "-m", String(args.month), "-d", String(args.day),
+                    "-H", String(args.hour)];
+      if (args.minute !== undefined && args.minute !== null) argv.push("-M", String(args.minute));
+      if (args.gender) argv.push("--gender", args.gender);
+      if (args.benMingZhi) argv.push("--ben-ming-zhi", args.benMingZhi);
+      if (args.age !== undefined && args.age !== null) argv.push("--age", String(args.age));
+      return call(argv, SHORT_TIMEOUT);
+    },
+  });
+
+  ctx.tools.register({
+    name: "fortune_qimen",
+    description:
+      "奇门遁甲（时家奇门）排盘：节气定局（阴阳遁三元）→ 地盘三奇六仪 → 值符值使 → "
+      + "天盘九星/八门/八神，附伏吟反吟判断。局数依《奇门遁甲秘笈大全》阳遁/阴遁九宫"
+      + "起例歌，布盘依「奇门掌中金要诀」与《烟波钓叟歌》（逐字引文见报告）；"
+      + "三元为拆补法简化口径（置闰/超神接气未实现，已标注）；只陈述排盘事实，不做吉凶总断。",
+    parameters: toParametersSchema({
+      year: INT("公历年（用事时刻）", true),
+      month: INT("公历月（1-12）", true),
+      day: INT("公历日（1-31）", true),
+      hour: INT("时（0-23，钟表时间）", true),
+      minute: INT("分（默认 0）"),
+    }),
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_qimen") },
+    timeoutMs: SHORT_TIMEOUT,
+    async execute(args) {
+      const argv = ["qimen", "-y", String(args.year),
+                    "-m", String(args.month), "-d", String(args.day),
+                    "-H", String(args.hour)];
+      if (args.minute !== undefined && args.minute !== null) argv.push("-M", String(args.minute));
+      return call(argv, SHORT_TIMEOUT);
+    },
+  });
+
+  ctx.tools.register({
+    name: "fortune_qizheng",
+    description:
+      "七政四余（果老星宗式）排盘：日月金木水火土与罗睺计都月孛的黄道宫宿躔度、"
+      + "命宫命度（太阳加生时顺数至卯）、十干化曜、宫主。七政与罗计孛用瑞士星历实测，"
+      + "二十八宿度用《张果星宗》通行度表（立春太阳虚一度锚定，古法口径）；"
+      + "紫气无可靠锚点不推算（如实标注）。只陈述排盘事实，不做吉凶总断。",
+    parameters: toParametersSchema({
+      year: INT("公历年（出生）", true),
+      month: INT("公历月（1-12）", true),
+      day: INT("公历日（1-31）", true),
+      hour: INT("时（0-23，钟表时间，北京时间）", true),
+      minute: INT("分（默认 0）"),
+    }),
+    output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_qizheng") },
+    timeoutMs: SHORT_TIMEOUT,
+    async execute(args) {
+      const argv = ["qizheng", "-y", String(args.year),
+                    "-m", String(args.month), "-d", String(args.day),
+                    "-H", String(args.hour)];
+      if (args.minute !== undefined && args.minute !== null) argv.push("-M", String(args.minute));
+      return call(argv, SHORT_TIMEOUT);
+    },
+  });
+
+  ctx.tools.register({
     name: "fortune_solar_info",
     description:
       "历法速查：公历↔农历、年干支/生肖、四柱、当年节气精确时刻。"

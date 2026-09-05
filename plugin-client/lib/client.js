@@ -1238,6 +1238,259 @@
           h(ContentText, { block, max: 800 }));
       }
 
+      // ------------------------------------------------------------------
+      // 大六壬天地盘 / 奇门九宫 / 七政星盘（meta 驱动交互 SVG，v0.3）
+      // ------------------------------------------------------------------
+      const FZ_ZHI = "子丑寅卯辰巳午未申酉戌亥";
+      const FZ_WX = { 子: "水", 丑: "土", 寅: "木", 卯: "木", 辰: "土", 巳: "火", 午: "火", 未: "土", 申: "金", 酉: "金", 戌: "土", 亥: "水" };
+      const FZ_GANWX = { 甲: "木", 乙: "木", 丙: "火", 丁: "火", 戊: "土", 己: "土", 庚: "金", 辛: "金", 壬: "水", 癸: "水" };
+      const FZ_SHENG = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" };
+      const FZ_KE = { 木: "土", 土: "水", 水: "火", 火: "金", 金: "木" };
+      const FZ_WXCOLOR = { 木: "#4caf50", 火: "#ef5350", 土: "#d4a017", 金: "#b0bec5", 水: "#42a5f5" };
+      const FZ_LQCOLOR = { 父母: "#d4a017", 兄弟: "#4caf50", 子孙: "#42a5f5", 妻财: "#b0bec5", 官鬼: "#ef5350" };
+      const FZ_PLANET = { 日: "#ff9800", 月: "#e0e0e0", 水: "#42a5f5", 金: "#fdd835", 火: "#ef5350", 木: "#4caf50", 土: "#b8860b", 罗: "#e91e63", 计: "#9c27b0", 孛: "#00acc1", 气: "#7e57c2" };
+      const FZ_GONGCN = { 1: "坎", 2: "坤", 3: "震", 4: "巽", 5: "中", 6: "乾", 7: "兑", 8: "艮", 9: "离" };
+      const FZ_LUO = { 1: [160, 262], 2: [262, 58], 3: [58, 160], 4: [58, 58], 5: [160, 160], 6: [262, 262], 7: [262, 160], 8: [58, 262], 9: [160, 58] };
+      const fzLiuQin = (dayGan, zhi) => {
+        const d = FZ_GANWX[dayGan]; const w = FZ_WX[zhi];
+        if (w === d) return "兄弟";
+        if (FZ_SHENG[w] === d) return "父母";
+        if (FZ_SHENG[d] === w) return "子孙";
+        if (FZ_KE[w] === d) return "官鬼";
+        return "妻财";
+      };
+      const fzPt = (deg, r, cx = 160, cy = 160) => {
+        const a = (deg - 90) * Math.PI / 180;
+        return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+      };
+      const fzArc = (a0, a1, r) => {
+        const [x0, y0] = fzPt(a0, r);
+        const [x1, y1] = fzPt(a1, r);
+        return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+      };
+      const FZ_CSS = [
+        ".fz-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:8px}",
+        ".fz-svg{width:min(100%,360px);height:auto}",
+        ".fz-zhi{font-size:13px;fill:var(--dsw-alias-label-primary);font-weight:600}",
+        ".fz-jname{font-size:9px;fill:#ffffff88}",
+        ".fz-shen-txt{font-size:12px;fill:#fff;font-weight:700;pointer-events:none}",
+        ".fz-center-t1{font-size:11px;fill:var(--dsw-alias-brand-primary)}",
+        ".fz-center-t2{font-size:11px;fill:var(--dsw-alias-label-primary)}",
+        ".fz-gong-label{font-size:10px}",
+        ".fz-gong-name{font-size:10px;fill:#ffffffaa}",
+        ".fz-di-gan{font-size:15px;fill:#ffcc80;font-weight:700}",
+        ".fz-xing{font-size:11px;fill:var(--dsw-alias-label-primary)}",
+        ".fz-men{font-size:10px;fill:#81d4fa}",
+        ".fz-shen-tag{font-size:9px;fill:#ffcc80}",
+        ".fz-legend{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:400px}",
+        ".fz-chip{font-size:11px;line-height:18px;padding:0 8px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}",
+        ".fz-chip-sc{border-style:dashed}",
+        ".fz-toggles{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}",
+        ".fz-toggle{font-size:11px;line-height:18px;padding:0 10px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);background:none;color:var(--dsw-alias-label-tertiary);cursor:pointer}",
+        ".fz-toggle.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 8%,transparent)}",
+        ".fz-chuan-line{stroke-dasharray:120;stroke-dashoffset:120;animation:fz-draw 1.6s ease forwards}",
+        "@keyframes fz-draw{to{stroke-dashoffset:0}}",
+        ".fz-pulse{animation:fz-pulse 2s ease-in-out infinite}",
+        "@keyframes fz-pulse{0%,100%{opacity:.9}50%{opacity:.25}}",
+        ".fz-gong:hover,.fz-shen:hover{cursor:default}",
+        "@media (prefers-reduced-motion:reduce){.fz-chuan-line{animation:none;stroke-dashoffset:0}.fz-pulse{animation:none}}",
+      ].join("\n");
+      let fzStyled = false;
+      const ensureFzStyle = () => {
+        if (typeof document !== "undefined" && !fzStyled) {
+          const el = document.createElement("style");
+          el.dataset.pluginCss = "dsh-fortune-client-fz";
+          el.textContent = FZ_CSS;
+          document.head.appendChild(el);
+          fzStyled = true;
+        }
+      };
+
+      function LiurenView({ block }) {
+        const d = metaData(block);
+        if (!d || !d.tian_pan) return h(ToolRow, { block, title: "大六壬 · 起课" });
+        const [hover, setHover] = useState(null);
+        const [pin, setPin] = useState(null);
+        const eff = pin ?? hover;
+        const panT = d.pan_tian ?? {};
+        const jiang = d.tian_jiang ?? {};
+        const dun = d.dun_gan ?? {};
+        const sc = d.san_chuan ?? [];
+        const scAng = sc.map((s) => FZ_ZHI.indexOf(panT[s] ?? s) * 30);
+        const kong = d.xun_kong ?? [];
+        const chips = [
+          ["第一课", d.gan_shang], ["第二课", d.gan_yin],
+          ["第三课", d.zhi_shang], ["第四课", d.zhi_yin],
+        ].filter(([, z]) => z);
+        const hoverInfo = eff ? ((p) => {
+          const qin = fzLiuQin((d.day_ganzhi ?? "甲")[0], p);
+          return `地盘 ${p}${FZ_WX[p]} ｜ 天盘 ${d.tian_pan[p]}（${jiangName(d.tian_pan[p])}）${fzLiuQin((d.day_ganzhi ?? "甲")[0], d.tian_pan[p])}\n天将 ${jiang[p] ?? "—"} · 遁干 ${dun[p] ?? "—"}`;
+        })(eff) : null;
+        ensureFzStyle();
+        return h(ToolRow, {
+          block, title: `大六壬 · ${d.ke_ti || "起课"}`,
+          pill: h("span", { className: "ft-pill" }, `${d.yue_jiang_name ?? ""}${d.yue_jiang_zhi ?? ""} · ${d.day_night ?? ""}占`),
+        },
+        h("div", { className: "fz-wrap" },
+          h("svg", { viewBox: "0 0 320 320", className: "fz-svg" },
+            FZ_ZHI.split("").map((z, i) => {
+              const [x, y] = fzPt(i * 30, 118);
+              return h("g", { key: z, className: "fz-gong", onMouseEnter: () => setHover(z), onMouseLeave: () => setHover(null), onClick: () => setPin(pin === z ? null : z) },
+                h("circle", { cx: x, cy: y, r: 20, fill: FZ_WXCOLOR[FZ_WX[z]] + "1f", stroke: (pin === z ? "#ffd54f" : FZ_WXCOLOR[FZ_WX[z]] + "66"), strokeWidth: pin === z ? 2 : 1 }),
+                h("text", { x, y: y - 4, textAnchor: "middle", className: "fz-zhi" }, z),
+                h("text", { x, y: y + 8, textAnchor: "middle", className: "fz-jname" }, FZ_WX[z]));
+            }),
+            FZ_ZHI.split("").map((di, i) => {
+              const shen = d.tian_pan[di];
+              if (!shen) return null;
+              const [x, y] = fzPt(i * 30, 92);
+              const qin = fzLiuQin((d.day_ganzhi ?? "甲")[0], shen);
+              const on = sc.includes(shen);
+              return h("g", { key: di, className: "fz-shen", onMouseEnter: () => setHover(di), onMouseLeave: () => setHover(null) },
+                h("circle", { cx: x, cy: y, r: 14, fill: FZ_LQCOLOR[qin] || "#888", opacity: on ? 1 : 0.85 }),
+                h("text", { x, y: y + 3.5, textAnchor: "middle", className: "fz-shen-txt" }, shen),
+                on ? h("circle", { cx: x, cy: y, r: 18, fill: "none", stroke: FZ_LQCOLOR[qin], strokeWidth: 1.6, strokeDasharray: "3 3", className: "fz-pulse" }) : null);
+            }),
+            scAng.length === 3
+              ? h("g", null, [0, 1].map((k) => h("path", { key: k, d: fzArc(scAng[k], scAng[k + 1], 96), fill: "none", stroke: "#ffd54f", strokeWidth: 2.4, className: "fz-chuan-line" })))
+              : null,
+            h("g", null,
+              h("circle", { cx: 160, cy: 160, r: 56, fill: "#00000033" }),
+              h("text", { x: 160, y: 154, textAnchor: "middle", className: "fz-center-t1" }, "月将加时"),
+              h("text", { x: 160, y: 172, textAnchor: "middle", className: "fz-center-t2" }, `${d.yue_jiang_name ?? ""}加${d.hour_zhi ?? ""}时`))),
+          h("div", { className: "fz-legend" },
+            chips.map(([name, z]) => h("span", { key: name, className: "fz-chip", style: { borderColor: FZ_LQCOLOR[fzLiuQin((d.day_ganzhi ?? "甲")[0], z)] } },
+              `${name} ${z}·${fzLiuQin((d.day_ganzhi ?? "甲")[0], z)}`)),
+            sc.map((s, i) => h("span", { key: i, className: "fz-chip fz-chip-sc", style: { borderColor: FZ_LQCOLOR[fzLiuQin((d.day_ganzhi ?? "甲")[0], s)] } },
+              `${["初传", "中传", "末传"][i]} ${s}（${jiangName(s)}）${fzLiuQin((d.day_ganzhi ?? "甲")[0], s)}`
+              + `${jiang[panT[s]] ? "·" + jiang[panT[s]] : ""}${dun[panT[s]] ? "·遁" + dun[panT[s]] : ""}${kong.includes(s) ? "·旬空" : ""}`))),
+          hoverInfo ? h("div", { className: "fz-chip", style: { whiteSpace: "pre", borderColor: "#ffd54f" } }, hoverInfo) : null));
+      }
+
+      function jiangName(zhi) {
+        return ({ 亥: "登明", 戌: "河魁", 酉: "从魁", 申: "传送", 未: "小吉", 午: "胜光", 巳: "太乙", 辰: "天罡", 卯: "太冲", 寅: "功曹", 丑: "大吉", 子: "神后" })[zhi] || "";
+      }
+
+      function QimenView({ block }) {
+        const d = metaData(block);
+        if (!d || !d.di_pan) return h(ToolRow, { block, title: "奇门遁甲 · 排盘" });
+        const [hover, setHover] = useState(null);
+        const [layers, setLayers] = useState({ di: true, xing: true, men: true, shen: true });
+        const cells = [];
+        for (let g = 1; g <= 9; g++) {
+          cells.push({
+            gong: g,
+            di: d.di_pan[String(g)] ?? "—",
+            xing: d.tian_pan[String(g)] ?? "—",
+            men: d.men_pan[String(g)] ?? "—",
+            shen: d.shen_pan[String(g)] ?? "—",
+          });
+        }
+        const layerBtn = (k, label) => h("button", {
+          key: k, type: "button", className: "fz-toggle" + (layers[k] ? " on" : ""),
+          onClick: () => setLayers({ ...layers, [k]: !layers[k] }),
+        }, label);
+        ensureFzStyle();
+        return h(ToolRow, {
+          block, title: `奇门遁甲 · ${d.dun ?? ""}${d.ju ?? ""}局`,
+          pill: h("span", { className: "ft-pill" },
+            `${d.jie_qi ?? ""}·${d.yuan ?? ""} 值符${d.zhi_fu_xing ?? "—"} 值使${d.zhi_shi_men ?? "—"}`),
+        },
+        h("div", { className: "fz-wrap" },
+          h("div", { className: "fz-toggles" },
+            layerBtn("di", "地盘"), layerBtn("xing", "九星"), layerBtn("men", "八门"), layerBtn("shen", "八神")),
+          h("svg", { viewBox: "0 0 320 320", className: "fz-svg" },
+            cells.map((c) => {
+              const [x, y] = FZ_LUO[c.gong];
+              const isFu = c.xing === d.zhi_fu_xing;
+              const isShi = c.men === d.zhi_shi_men;
+              return h("g", { key: c.gong, onMouseEnter: () => setHover(c.gong), onMouseLeave: () => setHover(null) },
+                h("rect", { x: x - 46, y: y - 46, width: 92, height: 92, rx: 14, fill: c.gong === 5 ? "#ffffff08" : "#ffffff0d", stroke: isFu || isShi ? "#ffd54f88" : "#ffffff22" }),
+                h("text", { x: x - 36, y: y - 30, className: "fz-gong-name" }, `${FZ_GONGCN[c.gong]}${c.gong === 5 ? "（寄坤二）" : ""}`),
+                layers.di ? h("text", { x: x - 36, y: y - 8, className: "fz-di-gan" }, c.di) : null,
+                layers.xing ? h("text", { x: x - 36, y: y + 14, className: "fz-xing" }, c.xing) : null,
+                layers.men ? h("text", { x: x - 36, y: y + 34, className: "fz-men" }, c.men) : null,
+                layers.shen ? h("text", { x: x + 34, y: y - 26, textAnchor: "end", className: "fz-shen-tag" }, c.shen) : null,
+                isFu ? h("rect", { x: x - 46, y: y - 46, width: 92, height: 92, rx: 14, fill: "none", stroke: "#ffd54f", strokeWidth: 2, className: "fz-pulse" }) : null);
+            })),
+          h("div", { className: "fz-legend" },
+            hover ? h("span", { className: "fz-chip" }, ((c) =>
+              `${FZ_GONGCN[c.gong]}宫：地盘${c.di} · ${c.xing} · ${c.men} · ${c.shen}`)(cells.find((x) => x.gong === hover))) : null,
+            d.fu_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "伏吟") : null,
+            d.fan_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "反吟") : null)));
+      }
+
+      function QizhengView({ block }) {
+        const d = metaData(block);
+        if (!d || !d.stars) return h(ToolRow, { block, title: "七政四余 · 星盘" });
+        const [hover, setHover] = useState(null);
+        const [ziqiIdx, setZiqiIdx] = useState(null);
+        const stars = d.stars ?? {};
+        const rows = d.ziqi_rows ?? [];
+        const selLon = (d.ziqi_sel && d.ziqi_sel.lon) ?? (rows[0] && rows[0].lon) ?? 0;
+        const ziqiLon = ziqiIdx != null && rows[ziqiIdx] ? rows[ziqiIdx].lon : selLon;
+        const sectorOf = (zhi) => (10 - FZ_ZHI.indexOf(zhi) + 12) % 12;
+        const mingIdx = sectorOf(d.ming_gong ?? "");
+        const starList = Object.entries(stars);
+        ensureFzStyle();
+        return h(ToolRow, {
+          block, title: `七政四余 · 命宫${d.ming_gong ?? "—"}`,
+          pill: h("span", { className: "ft-pill" },
+            `命度 ${d.ming_du ?? "—"}${d.hua_yao && Object.keys(d.hua_yao).length ? " · 禄曜" + Object.keys(d.hua_yao)[0] : ""}`),
+        },
+        h("div", { className: "fz-wrap" },
+          h("svg", { viewBox: "0 0 320 320", className: "fz-svg" },
+            Array.from({ length: 12 }, (_, i) => {
+              const a0 = i * 30 - 15;
+              const [x0, y0] = fzPt(a0 - 90, 128);
+              const [x1, y1] = fzPt(a0 + 30 - 15 - 90, 128);
+              const isMing = i === mingIdx;
+              const [lx, ly] = fzPt(i * 30 - 90, 112);
+              return h("g", { key: i },
+                h("path", { d: `M160 160 L${x0.toFixed(1)} ${y0.toFixed(1)} A128 128 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)} Z`, fill: isMing ? "#ffd54f2a" : "#ffffff0a", stroke: "#ffffff1f" }),
+                h("text", { x: lx, y: ly, textAnchor: "middle", className: "fz-gong-label", fill: isMing ? "#ffd54f" : "#b0bec5" },
+                  `${FZ_ZHI[(10 - i + 12) % 12]}宫`));
+            }),
+            Array.from({ length: 24 }, (_, i) => {
+              const [x0, y0] = fzPt(i * 15 - 90, 100);
+              const [x1, y1] = fzPt(i * 15 - 90, 94);
+              return h("line", { key: i, x1: x0, y1: y0, x2: x1, y2: y1, stroke: "#ffffff2a" });
+            }),
+            starList.map(([xing, v]) => {
+              const lon = xing === "气" ? ziqiLon : v.lon;
+              const [x, y] = fzPt(lon - 90, 97);
+              const col = FZ_PLANET[xing] || "#888";
+              return h("g", { key: xing, onMouseEnter: () => setHover(xing), onMouseLeave: () => setHover(null) },
+                h("circle", { cx: x, cy: y, r: xing === "气" ? 11 : 9, fill: col + "33", stroke: col, strokeWidth: 1.6 }),
+                h("text", { x, y: y + 3.5, textAnchor: "middle", className: "fz-shen-txt", fill: col }, xing));
+            }),
+            rows.map((r, i) => {
+              const [x, y] = fzPt(r.lon - 90, 97);
+              const on = (ziqiIdx == null && i === 0) || ziqiIdx === i;
+              return h("circle", { key: r.name || i, cx: x, cy: y, r: on ? 5 : 3.5, fill: FZ_PLANET["气"], opacity: on ? 1 : 0.45, style: { cursor: "pointer" }, onClick: () => setZiqiIdx(ziqiIdx === i ? null : i) });
+            }),
+            h("g", null,
+              h("circle", { cx: 160, cy: 160, r: 38, fill: "#00000033" }),
+              h("text", { x: 160, y: 154, textAnchor: "middle", className: "fz-center-t1" }, "命宫"),
+              h("text", { x: 160, y: 170, textAnchor: "middle", className: "fz-center-t2" }, `${d.ming_gong ?? "—"}宫`))),
+          h("div", { className: "fz-legend" },
+            starList.map(([xing, v]) => h("span", { key: xing, className: "fz-chip", style: { borderColor: FZ_PLANET[xing] } },
+              `${xingName(xing)} ${v.gong}宫${v.su}宿 ${Number(v.su_du).toFixed(2)}°`)),
+            hover ? h("span", { className: "fz-chip" }, ((v) =>
+              `${xingName(hover)} · ${Number(v.lon).toFixed(2)}° · ${v.gong}宫${v.gong_cn} · ${v.su}宿`)(stars[hover])) : null),
+          rows.length > 1 ? h("div", { className: "fz-toggles" },
+            h("span", { className: "fz-chip" }, "紫气口径："),
+            rows.map((r, i) => h("button", {
+              key: r.name || i, type: "button",
+              className: "fz-toggle" + ((ziqiIdx == null && i === 0) || ziqiIdx === i ? " on" : ""),
+              onClick: () => setZiqiIdx(ziqiIdx === i ? null : i),
+            }, `${r.name} ${Number(r.lon).toFixed(1)}°`))) : null));
+      }
+
+      function xingName(x) {
+        return ({ 日: "太阳", 月: "太阴", 水: "水星", 金: "金星", 火: "火星", 木: "木星", 土: "土星", 罗: "罗睺", 计: "计都", 孛: "月孛", 气: "紫气" })[x] || x;
+      }
+
       const TOOLVIEWS = {
         fortune_bazi: BaziView,
         fortune_ziwei: ZiweiView,
@@ -1248,6 +1501,9 @@
         fortune_solar_info: SolarInfoView,
         fortune_context: ContextView,
         fortune_comprehensive: ComprehensiveView,
+        fortune_liuren: LiurenView,
+        fortune_qimen: QimenView,
+        fortune_qizheng: QizhengView,
       };
 
       const inject = ["slots"];

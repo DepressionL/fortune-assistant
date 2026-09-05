@@ -23,22 +23,25 @@ function makeSpawn(calls) {
   };
 }
 
-const NINE_TOOLS = [
+const TWELVE_TOOLS = [
   "fortune_bazi",
   "fortune_ziwei",
   "fortune_chenggu",
   "fortune_xiaoliuren",
   "fortune_meihua",
   "fortune_liuyao",
+  "fortune_liuren",
+  "fortune_qimen",
+  "fortune_qizheng",
   "fortune_solar_info",
   "fortune_context",
   "fortune_comprehensive",
 ];
 
-test("注册 9 个工具且参数 schema 根为 object（DSH 方言要求）", () => {
+test("注册 12 个工具且参数 schema 根为 object（DSH 方言要求）", () => {
   const ctx = makeCtx();
   apply(ctx, { projectDir: "D:/proj", pythonBin: "py" });
-  assert.deepEqual(ctx.registered.map((t) => t.name), NINE_TOOLS);
+  assert.deepEqual(ctx.registered.map((t) => t.name), TWELVE_TOOLS);
   for (const t of ctx.registered) {
     assert.equal(t.parameters.type, "object");
     assert.ok(t.output.schema, `tool ${t.name} 缺 output.schema`);

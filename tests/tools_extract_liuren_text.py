@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""生成 fortune/liuren/text.py（《六壬大全》四库本 起课歌诀逐字引文）。
+
+数据源：research/fetched/liurendaquan_1.txt（卷一入手法九宗门）、
+liurendaquan_2.txt（卷二十二将释：月将、贵人、天将序）。
+程序化校验引句逐字（去空白）存在于存档；一致性由 tests/test_liuren.py 回归锁定。
+"""
+import json
+import pathlib
+import re
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+S1 = ROOT / "research" / "fetched" / "liurendaquan_1.txt"
+S2 = ROOT / "research" / "fetched" / "liurendaquan_2.txt"
+OUT = ROOT / "fortune" / "liuren" / "text.py"
+
+# 引句 → (来源文件, 说明)
+QUOTES = {
+    "寄宫": (S1, "甲课寅兮乙课辰，丙戊课巳不须论。丁己课未庚申上，"
+             "辛戌壬亥是其真。癸课原来丑宫坐，分明不用四正神。"),
+    "贼克": (S1, "取课先从下贼呼，如无下贼上克初。初传之上名中次，中上加临是末居。"
+             "三传既定天盘将，此是入式法第一。"),
+    "比用": (S1, "下贼或三二四侵，若逢上克亦同云。常将天日比神用，阳日用阳阴用阴。"
+             "若或俱比俱不比，立法别有渉害陈。"),
+    "涉害": (S1, "渉害行来本家止，路逢多克为用取。孟深仲浅季当休，复等柔辰刚日宜。"),
+    "遥克": (S1, "神遥克日曰蒿矢，日遥克神曰弹射。四课无克号为遥，日与神兮逓互招。"
+             "先取神遥克其日，如无方取日来遥。或有日克乎两神，复有两神来克日。"
+             "择与日干比者用，阳日用阳阴用阴。"),
+    "昴星": (S1, "无遥无克昴星穷，阳仰阴俯酉位中"),
+    "别责": (S1, "四课不全三课备，无遥无克别责例。刚日干合上头神，柔日支前三合取。"
+             "皆以天上作初传，阴阳中末干中寄。刚三柔六共九课，此课先贤俱隠秘。"),
+    "八专": (S1, "两课无克号八专，阳日日阳顺行三"),
+    "八专2": (S1, "阴日辰阴逆三位，中末总向日上眠"),
+    "伏吟": (S1, "伏吟有克还为用，无克刚干柔取辰。迤逦刑之作中末，从兹《玉厯》职其真。"
+             "若也自刑为发用，次传颠倒日辰并。次传更复自刑者，冲取末传不论刑。"),
+    "返吟": (S1, "返吟有克亦为用，无克别有井栏名。若知六日该无克，丑未同干丁己辛。"
+             "丑日登明未太乙，辰中日末识原因"),
+    "贵人顺逆": (S2, "以课之天盘起贵神之例，地盘定顺逆之序：顺布者，则背天门；"
+               "逆布者，则向地户。"),
+    "贵人顺逆注": (S2, "顺治谓在天门之前，地戸之后；逆治谓在地户之前，天门之后。"),
+    "贵人昼夜": (S2, "贵人从十干分书治、暮治，独不居辰、戌之地。"),
+    "天将序": (S2, "前有五位：一蛇、二雀、三合、四勾、五龙，此水、火、土之神在左方者。"
+             "后有五位：一后、二阴、三元、四常、五虎，此金、水、土之神在右方者。"),
+    "天将吉凶": (S2, "生日为吉，虽凶将亦为吉，克日为凶，虽吉将亦为凶，"
+                "紧要不离“生”、“克”二字。"),
+    "月将亥": (S2, "雨水后日躔娵訾，正月将"),
+    "月将子": (S2, "大寒后日躔元枵，十二月将"),
+    "月将寅底本": (S2, "大雪后日躔析木，十月将"),
+}
+
+NOTES = {
+    "月将寅": "《六壬大全》卷二底本作「大雪后日躔析木，十月将」，大雪为十一月节；"
+              "按太阳过宫通法当作「小雪后」，本仓从通法（小雪后功曹寅），如实标注。",
+    "贵人昼夜分界": "昼贵/夜贵按占时定：卯辰巳午未申酉为昼，戌亥子丑寅为夜（通行法）。",
+}
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", "", s)
+
+
+def main() -> int:
+    texts = {}
+    for tag in ("1", "2"):
+        texts[tag] = _norm(pathlib.Path(ROOT / "research" / "fetched" /
+                                        f"liurendaquan_{tag}.txt").read_text(encoding="utf-8"))
+    for key, (src, q) in QUOTES.items():
+        tag = "1" if src == S1 else "2"
+        if _norm(q) not in texts[tag]:
+            raise RuntimeError(f"引句不在存档中（卷{tag}）：{key} :: {q}")
+    with OUT.open("w", encoding="utf-8") as f:
+        f.write('"""《六壬大全》（明·郭载騋校，四库全书本，维基文库）起课歌诀逐字引文。\n\n')
+        f.write("出处：research/fetched/liurendaquan_1.txt（卷一入手法）、\n")
+        f.write("liurendaquan_2.txt（卷二十二将释）。由 tests/tools_extract_liuren_text.py\n")
+        f.write("程序化提取，一致性由 tests/test_liuren.py 回归锁定（引句逐字存在于存档）。\n")
+        f.write("NOTES：底本疑误/口径如实标注。\n""" + '"""\n\n')
+        f.write("QUOTES: dict[str, str] = {\n")
+        for k, (_, q) in QUOTES.items():
+            f.write(f"    {json.dumps(k, ensure_ascii=False)}: {json.dumps(q, ensure_ascii=False)},\n")
+        f.write("}\n\nNOTES: dict[str, str] = {\n")
+        for k, v in NOTES.items():
+            f.write(f"    {json.dumps(k, ensure_ascii=False)}: {json.dumps(v, ensure_ascii=False)},\n")
+        f.write("}\n")
+    print(f"已生成 {OUT}（引句 {len(QUOTES)}）")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

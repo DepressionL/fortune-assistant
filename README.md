@@ -238,6 +238,21 @@ fortune comprehensive -y 1990 -m 6 -d 15 -H 13 -M 30 -g 男 --anchor-year 2026
   原文短引（逐字、保持底本繁体），引文须逐字存在于原文存档，由
   `tests/test_liuyao_duanyu.py::test_shichi_quotes_verbatim_in_source` 回归锁定。
 - 变爻纳甲取支口径：见 `research/liuyao_tables.md` §6.3。
+- **大六壬（新增）**：起课排盘（月将加时→天地盘→四课→三传九宗门→十二天将→
+  遁干旬空六亲→年命行年），规则逐字依《六壬大全》四库本卷一入手法与卷二十二将释
+  （`fortune/liuren/`，引文 `text.py` 程序化提取）；九宗门黄金用例 10 例手算核验，
+  月将「大雪/小雪」底本疑误、贵人昼夜等口径如实标注。回归见 `tests/test_liuren.py`，
+  口径见 `research/liuren_tables.md`。
+- **奇门遁甲（新增）**：时家奇门排盘（节气定局阴阳遁三元→地盘三奇六仪→值符值使→
+  天盘九星/八门/八神→伏吟反吟），局数与布盘依《奇门遁甲秘笈大全》起例歌与
+  「奇门掌中金要诀」、《烟波钓叟歌》（`fortune/qimen/`）；**秘笈大全金锚互证**
+  （阳遁二局甲子日乙丑时「休门飞到坤二宫」），值使门两说起法、拆补法简化口径
+  如实标注。回归见 `tests/test_qimen.py`，口径见 `research/qimen_tables.md`。
+- **七政四余（新增）**：果老星宗式排盘（七政与罗计孛用瑞士星历实测、二十八宿度
+  按《张果星宗》通行度表立春虚一度锚定、命宫命度太阳加生时顺数至卯、十干化曜、
+  宫主；`fortune/qizheng/`）；紫气无可靠锚点不推算、古度制与回归黄道口径如实标注，
+  星躔黄金用例与 1990 天文实况（木星巨蟹、土星磨羯）互证。
+  回归见 `tests/test_qizheng.py`，口径见 `research/qizheng_tables.md`。
 
 紫微报告表头已按实际生年显示四化（如丁年：太阴化禄、天同化权、天机化科、巨门化忌），
 庚年两派为**配置口径**（表头「配置口径」行），不再混排。
@@ -260,12 +275,13 @@ fortune comprehensive -y 1990 -m 6 -d 15 -H 13 -M 30 -g 男 --anchor-year 2026
 - **穷举表校验**：`tests/test_exhaustive.py` 用独立权威清单全量核对 64 卦名（King Wen 序）、
   由「本宫卦逐爻变」规则独立推导复现八宫 64 卦与世应、纳甲地支经典口诀清单、
   神煞公式全干全支穷举、驿马桃花华盖将星劫煞灾煞由三合长生位公式推导核验。
-- **测试**：`tests/` 共 191 项断言（黄金用例、HKO 官方数据 4 个年份、穷举表校验、
+- **测试**：`tests/` 共 238 项断言（黄金用例、HKO 官方数据 4 个年份、穷举表校验、
   争议开关、第二轮审查回归、周易表完整性、六爻变爻纳甲与断语、CLI 输入校验、
   穷通宝鉴调候表忠实性与喜用提炼、三命通会新神煞黄金用例、渊海子平交叉核验
   （赋文本+足本）、子平真诠评注忠实性与 geju 接线、神峰通考病药流派、卜筮正宗/
   梅花易数/滴天髓引文忠实性、十八论双源逐字锁定与触发、神峰通考四病四药双源
-  互证与逐格细分、滴天髓何知章规则映射与大运流年），
+  互证与逐格细分、滴天髓何知章规则映射与大运流年、**大六壬九宗门黄金用例、**
+  **奇门遁甲局数歌与秘笈金锚、七政四余星躔黄金用例**），
   另 `plugin/test/` 17 项 node 测试（含 `e2e.cli.test.mjs` 端到端契约测试：真跑
   `python -m fortune.cli`，断言工具 schema 广告的每个参数组合 exit 0、非法输入
   返回可读报错——此前的 ziwei `--day-change` 崩溃即由该层契约测试防住）；全部通过。
@@ -277,7 +293,7 @@ fortune comprehensive -y 1990 -m 6 -d 15 -H 13 -M 30 -g 男 --anchor-year 2026
 `plugin/` 目录是 DSH 原生插件（`dsh.bundle` 包，零 npm 依赖，模板与本机已验证的
 dsh-stable-asr 一致），提供 `fortune_bazi` / `fortune_ziwei` / `fortune_liuyao` /
 `fortune_meihua` / `fortune_xiaoliuren` / `fortune_chenggu` / `fortune_solar_info`
-7 个工具，全部调用 `python -m fortune.cli`（计算单一事实源在 Python 侧）。
+10 个工具，全部调用 `python -m fortune.cli`（计算单一事实源在 Python 侧）。
 安装与配置见 [plugin/README.md](plugin/README.md)。
 
 ## 项目结构
@@ -287,15 +303,18 @@ fortune/
 ├── config.py        # 所有流派争议开关（FortuneConfig）
 ├── core/            # model(输入)、calendar(归一化)、solar_time(真太阳时/EoT/夏令时)
 ├── bazi/            # chart(排盘)、shensha(神煞)、relation(合冲刑害)、liunian(流年)、
-│                    # strength(旺衰打分)、yongshen(用神规则引擎)
+│                    # strength(旺衰打分)、yongshen(用神规则引擎)、ditiansui(何知章)
 ├── ziwei/           # x_iztro 引擎封装 + 争议开关 + Markdown/SVG
-├── liuyao/          # 六爻起卦装卦
+├── liuyao/          # 六爻起卦装卦 + 十八论引注
+├── liuren/          # 大六壬起课（九宗门/天将/遁干旬空六亲/年命行年）
+├── qimen/           # 奇门遁甲排盘（局数/奇仪/九星八门八神/值符值使）
+├── qizheng/         # 七政四余排盘（瑞士星历 + 果老宿度/命宫命度/化曜）
 ├── misc/            # meihua / xiaoliuren / chenggu
 ├── report/          # markdown 报告、svg 盘面
 └── cli.py           # typer 命令行
-plugin/              # DSH 原生插件（dsh.bundle，7 个 fortune_* 工具）
+plugin/              # DSH 原生插件（dsh.bundle，10 个 fortune_* 工具）
 research/            # 文献核验文档 + HKO 官方历法数据（表出处与分歧的依据）
-tests/               # 191 项断言
+tests/               # 238 项断言
 ```
 
 ## 文献与数据来源（硬编码表依据）
@@ -306,6 +325,9 @@ tests/               # 191 项断言
 - `research/ziwei_tables.md` —— 紫微安星诀核验清单（含 §6.1 引擎修正附注）
 - `research/liuyao_tables.md` —— 六爻纳甲/世应/六亲/六神/旬空（《增删卜易》《卜筮正宗》）
 - `research/shiba_lun.md` —— 《卜筮正宗》十八论双源分章标注与触发性引用口径
+- `research/liuren_tables.md` —— 大六壬起课规则（《六壬大全》九宗门/天将）与黄金用例
+- `research/qimen_tables.md` —— 奇门遁甲排盘规则（《秘笈大全》《烟波钓叟歌》）与黄金用例
+- `research/qizheng_tables.md` —— 七政四余排盘规则（《张果星宗》《星学大成》）与黄金用例
 - `research/chenggu_table.md` —— 称骨通行男命版全表
 - `research/xiaoliuren.md` —— 小六壬掌诀与断辞
 - 《神峰通考》四章、《滴天髓》各章与何知章：出处与异文见 `fortune/bazi/shenfeng_text.py`、

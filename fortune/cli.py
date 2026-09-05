@@ -36,6 +36,12 @@ from .core import context as ctx_mod
 from .core.calendar import normalize
 from .core.model import BirthInfo
 from .liuyao import ZHI, duanyu as liuyao_duanyu
+from .liuren import duanyu as liuren_duanyu
+from .liuren import qike_full as liuren_qike_full
+from .qimen import bu_ju as qimen_bu_ju
+from .qimen import duanyu as qimen_duanyu
+from .qizheng import duanyu as qizheng_duanyu
+from .qizheng import qizheng as qizheng_pan
 from .misc import chenggu as chenggu_mod
 from .misc import meihua as meihua_mod
 from .misc import xiaoliuren as xlr_mod
@@ -224,6 +230,99 @@ def bazi(
             f.write(svg)
         typer.echo(f"五行图已写入 {out_svg}")
     _dump_meta(meta_json, _bazi_meta(chart, config, school_list))
+
+
+@app.command()
+def liuren(
+    year: int = typer.Option(..., "--year", "-y", help="公历年（占时）"),
+    month: int = typer.Option(..., "--month", "-m", help="公历月"),
+    day: int = typer.Option(..., "--day", "-d", help="公历日"),
+    hour: int = typer.Option(..., "--hour", "-H", help="占时（0-23，钟表时间）"),
+    minute: int = typer.Option(0, "--minute", "-M", help="分"),
+    gender: str = typer.Option("", "--gender", "-g", help="男/女（行年用；缺省不算年命）"),
+    ben_ming_zhi: str = typer.Option("", "--ben-ming-zhi",
+                                     help="本命地支（生年支，如丑；行年用）"),
+    age: int = typer.Option(0, "--age", help="虚岁（行年用）"),
+    as_json: bool = typer.Option(False, "--json", help="输出 JSON"),
+    meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
+):
+    """大六壬起课排盘：月将加时、天地盘、四课、三传九宗门、十二天将、遁干旬空六亲。"""
+    if not (1 <= month <= 12 and 1 <= day <= 31 and 0 <= hour <= 23 and 0 <= minute <= 59):
+        _fail("时间越界：month 1-12、day 1-31、hour 0-23、minute 0-59")
+    if ben_ming_zhi and ben_ming_zhi not in "子丑寅卯辰巳午未申酉戌亥":
+        _fail("本命地支须为子丑寅卯辰巳午未申酉戌亥之一")
+    if gender and gender not in ("男", "女"):
+        _fail("性别须为 男/女")
+    chart = liuren_qike_full(year, month, day, hour, minute,
+                             gender or None, ben_ming_zhi or None, age or None)
+    if as_json:
+        typer.echo(json.dumps(dataclasses.asdict(chart), ensure_ascii=False, indent=2))
+        raise typer.Exit()
+    typer.echo(liuren_duanyu.format_chart(chart))
+    _dump_meta(meta_json, {"tool": "liuren", **dataclasses.asdict(chart)})
+
+
+@app.command()
+def qimen(
+    year: int = typer.Option(..., "--year", "-y", help="公历年（用事时刻）"),
+    month: int = typer.Option(..., "--month", "-m", help="公历月"),
+    day: int = typer.Option(..., "--day", "-d", help="公历日"),
+    hour: int = typer.Option(..., "--hour", "-H", help="时（0-23，钟表时间）"),
+    minute: int = typer.Option(0, "--minute", "-M", help="分"),
+    as_json: bool = typer.Option(False, "--json", help="输出 JSON"),
+    meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
+):
+    """奇门遁甲（时家奇门）排盘：节气定局、三元、地盘三奇六仪、值符值使、九星八门八神。"""
+    if not (1 <= month <= 12 and 1 <= day <= 31 and 0 <= hour <= 23 and 0 <= minute <= 59):
+        _fail("时间越界：month 1-12、day 1-31、hour 0-23、minute 0-59")
+    chart = qimen_bu_ju(year, month, day, hour, minute)
+    if as_json:
+        typer.echo(json.dumps(dataclasses.asdict(chart), ensure_ascii=False, indent=2))
+        raise typer.Exit()
+    typer.echo(qimen_duanyu.format_chart(chart))
+    _dump_meta(meta_json, {"tool": "qimen", **dataclasses.asdict(chart)})
+
+
+@app.command()
+def qizheng(
+    year: int = typer.Option(..., "--year", "-y", help="公历年（出生）"),
+    month: int = typer.Option(..., "--month", "-m", help="公历月"),
+    day: int = typer.Option(..., "--day", "-d", help="公历日"),
+    hour: int = typer.Option(..., "--hour", "-H", help="时（0-23，钟表时间，北京时间）"),
+    minute: int = typer.Option(0, "--minute", "-M", help="分"),
+    ziqi_preset: str = typer.Option("guolao1900", "--ziqi-preset",
+                                     help="紫气预设 guolao1900|guolao1984|guolao1910|"
+                                          "xingping1900|xingxue1900|minguo1910"),
+    ziqi_rate: float | None = typer.Option(None, "--ziqi-rate",
+                                           help="紫气自定义速率（度/日）"),
+    ziqi_epoch: str | None = typer.Option(None, "--ziqi-epoch",
+                                          help="紫气自定义起算点 YYYY-MM-DD"),
+    ziqi_epoch_lon: float | None = typer.Option(None, "--ziqi-epoch-lon",
+                                                help="紫气自定义起算点黄经（度）"),
+    as_json: bool = typer.Option(False, "--json", help="输出 JSON"),
+    meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
+):
+    """七政四余（果老星宗式）排盘：星躔宫宿、命宫命度、十干化曜、宫主、紫气多口径。"""
+    if not (1 <= month <= 12 and 1 <= day <= 31 and 0 <= hour <= 23 and 0 <= minute <= 59):
+        _fail("时间越界：month 1-12、day 1-31、hour 0-23、minute 0-59")
+    if ziqi_preset not in ("guolao1900", "guolao1984", "guolao1910",
+                           "xingping1900", "xingxue1900", "minguo1910"):
+        _fail("--ziqi-preset 取值非法")
+    custom = None
+    if ziqi_rate is not None and ziqi_epoch is not None and ziqi_epoch_lon is not None:
+        import swisseph as _swe
+        try:
+            y, m, d = [int(x) for x in ziqi_epoch.split("-")]
+            custom = (ziqi_rate, _swe.julday(y, m, d, 0.0), ziqi_epoch_lon)
+        except (ValueError, TypeError):
+            _fail("--ziqi-epoch 须为 YYYY-MM-DD")
+    chart = qizheng_pan(year, month, day, hour, minute,
+                        ziqi_preset=ziqi_preset, ziqi_custom=custom)
+    if as_json:
+        typer.echo(json.dumps(dataclasses.asdict(chart), ensure_ascii=False, indent=2))
+        raise typer.Exit()
+    typer.echo(qizheng_duanyu.format_chart(chart))
+    _dump_meta(meta_json, {"tool": "qizheng", **dataclasses.asdict(chart)})
 
 
 @app.command()

@@ -70,6 +70,23 @@ class FortuneConfig:
     #: 两派对老阴老阳恰好互换，务必在报告中注明所用约定。
     liuyao_coin_back: str = "yang"
 
+    # ---------- 七政四余·紫气（多口径） ----------
+    #: 紫气预设（虚拟星，多套速率×起算点同时计算，报告附对照表）：
+    #: "guolao1900"（默认，果老星宗 29 日行一度 + 1900-01-01 白羊初度，
+    #: 现代排盘软件最常用简化起算）| "guolao1984"（果老速率 + 甲子年立春）
+    #: | "guolao1910"（果老速率 + 1910-01-05 辰宫二十二度，早期星历立成表锚点）
+    #: | "xingping1900"（《星平会海》28 日行一度 + 1900 白羊初度）
+    #: | "xingxue1900"（《星学大成》二十八个月一宫换算 + 1900 白羊初度）
+    #: | "minguo1910"（民国星历比对口径：1910 锚 + 日行六分四十秒，疑月孛速率，
+    #: 如实标注）。详见 fortune/qizheng/__init__.py 与 research/qizheng_tables.md。
+    ziqi_preset: str = "guolao1900"
+
+    #: 紫气自定义起法：速率（度/日）、起算点（ISO 日期）、起算点黄经（度）。
+    #: 三者同时给定时在对照表中追加「自定义」行（不改默认行）。
+    ziqi_rate: float | None = None
+    ziqi_epoch: str | None = None
+    ziqi_epoch_lon: float | None = None
+
     # ---------- 何知章（《滴天髓》规则映射） ----------
     #: 规则阈值覆盖（键见 bazi/ditiansui.HEZHI_DEFAULTS；推导与样本统计见
     #: research/hezhi_rules.md。默认值已收紧，避免多数盘全命中）。
@@ -115,6 +132,9 @@ class FortuneConfig:
         assert self.ziwei_geng_sihua in ("tiantong", "tianxiang"), \
             "ziwei_geng_sihua 取值非法"
         assert self.liuyao_coin_back in ("yang", "yin"), 'liuyao_coin_back 只能为 "yang"/"yin"'
+        assert self.ziqi_preset in ("guolao1900", "guolao1984", "guolao1910",
+                                    "xingping1900", "xingxue1900", "minguo1910"), \
+            "ziqi_preset 取值非法"
         assert isinstance(self.hezhi_thresholds, dict), "hezhi_thresholds 须为字典"
         assert isinstance(self.comprehensive_weights, dict), "comprehensive_weights 须为字典"
         assert self.liunian_years >= 0, "liunian_years 须 ≥0"

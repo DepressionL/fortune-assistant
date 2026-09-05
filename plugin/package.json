@@ -1,7 +1,7 @@
 {
   "name": "dsh-fortune",
   "version": "0.1.0",
-  "description": "DSH 原生插件：fortune-assistant（八字/紫微/六爻/梅花/小六壬/称骨 排盘与历法）工具集。薄工具层——计算与校验由 Python 单一事实源（fortune.cli）承载。",
+  "description": "DSH 原生插件：fortune-assistant（八字/紫微/六爻/梅花/小六壬/称骨/大六壬/奇门/七政四余 排盘与历法）工具集。薄工具层——计算与校验由 Python 单一事实源（fortune.cli）承载；Web 图形化盘面由配套包 dsh-fortune-client 提供。",
   "type": "module",
   "main": "lib/index.js",
   "files": ["lib/index.js", "README.md", "cordis.patch.yml"],

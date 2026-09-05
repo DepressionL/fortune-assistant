@@ -1,6 +1,6 @@
 # dsh-fortune-client —— fortune 工具的图形化 Web UI（DSH 客户端插件）
 
-为 `dsh-fortune` 的 7 个工具注册 `tool.call.toolview` 行渲染，把排盘结果画成
+为 `dsh-fortune` 的工具注册 `tool.call.toolview` 行渲染，把排盘结果画成
 直观的**可交互**图形化盘面，带入场/脉冲/描画/生长动效：
 
 | 工具 | 图形化呈现 | 交互 |
@@ -14,6 +14,9 @@
 | `fortune_solar_info` | 公历/农历/年干支/四柱徽章 + 节气时间徽章 | — |
 | `fortune_context` | BirthContext：四柱徽章 + 钟表/校正时支双口径 + 归一化步骤 | — |
 | `fortune_comprehensive` | **用神共识热力矩阵**（流派×五行投票）+ **分维度结论卡**（共识度分档徽章）+ **证据链折叠**（工具→字段→事实→出处）+ **冲突清单** | 证据链展开/收起按钮 |
+| `fortune_liuren` | **天地盘双环 SVG**：外环地盘十二支（五行着色）、内环天盘神（六亲着色）、月将加时中心标注、三传金线描画动画 | 悬停/点击宫位显示 天盘神/天将/遁干/六亲 浮层（可钉选） |
+| `fortune_qimen` | **洛书九宫盘 SVG**：地盘干/九星/八门/八神四层（逐层开关）、值符宫呼吸描边、伏吟/反吟徽章 | 四层开关按钮；悬停宫位显示明细 |
+| `fortune_qizheng` | **十二宫星盘 SVG**：宫扇区（命宫高亮）+ 宿度刻线 + 十一曜圆点（黄经定位、五行配色）+ **紫气多口径切换**（点击口径圆点，紫气沿盘面移动对比起算点差异） | 点击紫气圆点/口径按钮切换口径；悬停星曜看详情 |
 
 ## 数据链路
 
@@ -39,8 +42,8 @@ dsh-fortune-client（浏览器）--tool.call.toolview 槽位--> 读 block.meta �
 ## 测试
 
 ```powershell
-node test\smoke.mjs   # 渲染冒烟：注入假 react/window，7 视图渲染 + 交互回调
-                      # + 12 宫盘结构 + meta 缺失回退
+node test\smoke.mjs   # 渲染冒烟：注入假 react/window，12 视图渲染 + 交互回调
+                      # + 12 宫盘结构 + 三大新盘（天地盘/九宫/星盘）+ meta 缺失回退
 ```
 
 ## 安装

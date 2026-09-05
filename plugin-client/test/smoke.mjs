@@ -44,7 +44,7 @@ const ctx = {
   },
 };
 clientExports.apply(ctx);
-assert.equal(registrations.length, 9, "应注册 9 个 toolview");
+assert.equal(registrations.length, 12, "应注册 12 个 toolview");
 const viewOf = (name) => registrations.find(([k]) => k === name)[1];
 
 // ---- 真实形状的 meta 数据 ----
@@ -157,6 +157,53 @@ const FIXTURES = {
     conflicts: ["用神流派分歧：tongguan 的用神不含最高得票五行 水（并列展示，不调和）。"],
     notes: [],
   },
+  fortune_liuren: {
+    tool: "liuren", year: 1990, month: 6, day: 15, hour: 13, minute: 30,
+    day_ganzhi: "辛亥", hour_zhi: "未", yue_jiang_zhi: "申", yue_jiang_name: "传送",
+    jie_qi: "小满", day_night: "昼",
+    tian_pan: { 子: "丑", 丑: "寅", 寅: "卯", 卯: "辰", 辰: "巳", 巳: "午", 午: "未", 未: "申", 申: "酉", 酉: "戌", 戌: "亥", 亥: "子" },
+    pan_tian: { 丑: "子", 寅: "丑", 卯: "寅", 辰: "卯", 巳: "辰", 午: "巳", 未: "午", 申: "未", 酉: "申", 戌: "酉", 亥: "戌", 子: "亥" },
+    gan_shang: "亥", gan_yin: "子", zhi_shang: "子", zhi_yin: "丑",
+    san_chuan: ["丑", "寅", "卯"], ke_ti: "元首课", ke_ti_note: "一上克下",
+    gui_ren_zhi: "午", gui_shun: false,
+    tian_jiang: { 子: "青龙", 丑: "勾陈", 寅: "六合", 卯: "朱雀", 辰: "螣蛇", 巳: "贵人", 午: "天后", 未: "太阴", 申: "玄武", 酉: "太常", 戌: "白虎", 亥: "天空" },
+    dun_gan: { 子: "壬", 丑: "癸", 寅: "甲", 卯: "乙", 辰: "甲", 巳: "乙", 午: "丙", 未: "丁", 申: "戊", 酉: "己", 戌: "庚", 亥: "辛" },
+    xun_shou: "甲辰", xun_kong: ["寅", "卯"], ben_ming: "丑", xing_nian: "午",
+  },
+  fortune_qimen: {
+    tool: "qimen", year: 1988, month: 1, day: 10, hour: 1, minute: 30,
+    jie_qi: "小寒", dun: "阳遁", ju: 2, yuan: "上元",
+    day_ganzhi: "甲子", hour_ganzhi: "乙丑", xun_shou: "甲子",
+    di_pan: { 1: "乙", 2: "戊", 3: "己", 4: "庚", 5: "辛", 6: "壬", 7: "癸", 8: "丁", 9: "丙" },
+    zhi_fu_xing: "天芮", zhi_fu_gong: 2, zhi_shi_men: "死门",
+    tian_pan: { 1: "天芮", 2: "天冲", 3: "天辅", 4: "天禽", 5: "天心", 6: "天柱", 7: "天任", 8: "天英", 9: "天蓬" },
+    men_pan: { 1: "开门", 2: "休门", 3: "生门", 4: "伤门", 6: "杜门", 7: "景门", 8: "死门", 9: "惊门" },
+    shen_pan: { 1: "值符", 2: "螣蛇", 3: "太阴", 4: "六合", 6: "勾陈", 7: "朱雀", 8: "九地", 9: "九天" },
+    fu_yin: false, fan_yin: false,
+  },
+  fortune_qizheng: {
+    tool: "qizheng", year: 1990, month: 6, day: 15, hour: 13, minute: 30, hour_zhi: "未",
+    ming_gong: "辰", ming_du: "角5.87度", hua_yao: { 气: "辛" },
+    stars: {
+      日: { lon: 83.8709, gong: "申", gong_cn: "阴阳", su: "参", su_du: 4.12 },
+      月: { lon: 341.7521, gong: "亥", gong_cn: "双鱼", su: "室", su_du: 2.5 },
+      水: { lon: 65.2277, gong: "申", gong_cn: "阴阳", su: "毕", su_du: 2.48 },
+      金: { lon: 48.4591, gong: "酉", gong_cn: "金牛", su: "胃", su_du: 11.71 },
+      火: { lon: 10.8466, gong: "戌", gong_cn: "白羊", su: "奎", su_du: 4.1 },
+      木: { lon: 105.8308, gong: "未", gong_cn: "巨蟹", su: "井", su_du: 16.58 },
+      土: { lon: 294.0478, gong: "丑", gong_cn: "磨羯", su: "斗", su_du: 20.55 },
+      罗: { lon: 308.1156, gong: "子", gong_cn: "宝瓶", su: "女", su_du: 4.87 },
+      计: { lon: 128.1156, gong: "午", gong_cn: "狮子", su: "柳", su_du: 6.12 },
+      孛: { lon: 234.921, gong: "卯", gong_cn: "天蝎", su: "氐", su_du: 15.92 },
+      气: { lon: 59.2148, gong: "酉", gong_cn: "金牛", su: "昴", su_du: 7.46, preset: "果老·1900白羊初度" },
+    },
+    ziqi_sel: { key: "guolao1900", name: "果老·1900白羊初度", lon: 59.2148 },
+    ziqi_rows: [
+      { key: "guolao1900", name: "果老·1900白羊初度", lon: 59.2148 },
+      { key: "guolao1910", name: "果老·立成1910", lon: 135.1458 },
+      { key: "minguo1910", name: "民国星历口径·1910", lon: 226.581 },
+    ],
+  },
 };
 
 // ---- 渲染冒烟 ----
@@ -240,5 +287,5 @@ for (const [name] of Object.entries(FIXTURES)) {
   View({ block: { kind: "tool-result", meta: null, content: [] } });
 }
 
-console.log(`渲染冒烟通过：${rendered}/9 视图渲染成功，交互回调存在，12 宫盘结构正确，`
+console.log(`渲染冒烟通过：${rendered}/12 视图渲染成功，交互回调存在，12 宫盘结构正确，`
   + `共识矩阵 ${heatCells} 格 + ${evBtns} 证据链按钮，meta 缺失回退正常`);

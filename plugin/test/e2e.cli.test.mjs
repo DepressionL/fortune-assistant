@@ -116,6 +116,31 @@ test("e2e：全部工具 × 全部广告参数 真跑 CLI（契约）", { timeou
     backs: [1, 1, 1, 1, 1, 1], monthZhi: "午", dayGanzhi: "甲子", coinBack: "yin",
   });
   assert.equal(r.ok, true, `liuyao yin 失败: ${r.output}`);
+
+  // 13) 大六壬：起课（含年命行年）
+  r = await t.fortune_liuren.execute({
+    year: 1990, month: 6, day: 15, hour: 13,
+    gender: "男", benMingZhi: "丑", age: 30,
+  });
+  assert.equal(r.ok, true, `liuren 失败: ${r.output}`);
+  assert.ok(r.meta.san_chuan && r.meta.san_chuan.length === 3, "六壬应有三传");
+  assert.ok(r.meta.ke_ti && r.meta.yue_jiang_name, "六壬应有课体与月将");
+
+  // 14) 奇门遁甲：时家奇门排盘
+  r = await t.fortune_qimen.execute({
+    year: 1989, month: 1, day: 4, hour: 0, minute: 30,
+  });
+  assert.equal(r.ok, true, `qimen 失败: ${r.output}`);
+  assert.ok(r.meta.dun && r.meta.ju === 1, "奇门应有遁与局数");
+  assert.ok(r.meta.zhi_fu_xing && r.meta.zhi_shi_men, "奇门应有值符值使");
+
+  // 15) 七政四余：果老星宗式排盘
+  r = await t.fortune_qizheng.execute({
+    year: 1990, month: 6, day: 15, hour: 13, minute: 30,
+  });
+  assert.equal(r.ok, true, `qizheng 失败: ${r.output}`);
+  assert.ok(r.meta.stars && r.meta.stars["日"], "七政应有太阳躔度");
+  assert.ok(r.meta.ming_gong && r.meta.ming_du, "七政应有命宫命度");
 });
 
 test("e2e：非法输入返回可读报错（不崩溃、不静默）", { timeout: 120000, skip: SKIP }, async () => {
