@@ -1307,7 +1307,7 @@
         ".fz-wrap{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:10px}",
         ".fz-svg{width:min(100%,400px);height:auto;display:block}",
         ".fz-split{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;width:100%}",
-        ".fz-half{flex:1 1 290px;min-width:272px;max-width:392px;display:flex;flex-direction:column;align-items:center;gap:6px}",
+        ".fz-half{flex:1 1 290px;min-width:272px;max-width:392px;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:center}",
         ".fz-half-title{font-size:11px;color:var(--dsw-alias-label-tertiary)}",
         ".fz-zhi{font-size:18px;fill:var(--dsw-alias-label-primary);font-weight:700}",
         ".fz-jname{font-size:10px;fill:#ffffff88}",
@@ -1319,11 +1319,11 @@
         ".fz-center-t3{font-size:10px;fill:var(--dsw-alias-label-tertiary)}",
         ".fz-gong-label{font-size:13px;font-weight:600}",
         ".fz-gong-en{font-size:9px;fill:#ffffff66}",
-        ".fz-scene{width:340px;height:300px;perspective:1050px;position:relative;cursor:grab;touch-action:none;overflow:hidden}",
+        ".fz-scene{width:380px;height:330px;perspective:1050px;position:relative;cursor:grab;touch-action:none;overflow:hidden}",
         ".fz-scene:active{cursor:grabbing}",
         ".fz-space{position:absolute;inset:0;transform-style:preserve-3d}",
         ".fz-orbit3d{position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%) rotateX(90deg)}",
-        ".fz-sun3d{position:absolute;left:50%;top:50%;width:40px;height:40px;border-radius:50%;transform:translate(-50%,-50%) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));background:radial-gradient(circle at 36% 30%, #fff3c2, #ffd54f 28%, #ff9800 72%, #ff6d00 100%);box-shadow:0 0 34px 8px rgba(255,167,38,.4)}",
+        ".fz-sun3d{position:absolute;left:50%;top:50%;width:40px;height:40px;border-radius:50%;transform:translate(-50%,-50%) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));background:radial-gradient(circle at 36% 30%, #fff8d8, #ffd54f 28%, #ff9800 72%, #ff6d00 100%);box-shadow:0 0 30px 10px rgba(255,167,38,.55),0 0 90px 36px rgba(255,167,38,.16)}",
         ".fz-planet3d{position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);will-change:transform;transform-style:preserve-3d}",
         ".fz-planet3d.on{outline:2px solid #ffd54f;outline-offset:3px}",
         ".fz-planet3d.g{opacity:.78}",
@@ -1345,6 +1345,9 @@
         ".fz-controls{display:flex;flex-direction:column;gap:7px;align-items:center;width:100%}",
         ".fz-range{width:150px;accent-color:var(--dsw-alias-brand-primary);vertical-align:middle}",
         ".fz-cambtns{position:absolute;top:6px;right:8px;display:flex;gap:4px;z-index:950}",
+        ".fz-caminfo{position:absolute;left:8px;bottom:6px;font-size:9px;line-height:13px;padding:0 6px;border-radius:6px;background:rgba(10,14,20,.6);color:var(--dsw-alias-label-tertiary);z-index:960;pointer-events:none}",
+        ".fz-glow{filter:drop-shadow(0 0 6px rgba(255,213,79,.45))}",
+        ".fz-glow-w{filter:drop-shadow(0 0 2.5px rgba(255,255,255,.32))}",
         ".fz-toggle.sm{font-size:10px;line-height:15px;padding:0 6px}",
         ".fz-moon3d{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 35% 30%, #ffffffcc, #90a4ae 70%);box-shadow:0 0 6px rgba(0,0,0,.7)}",
         ".fz-grid{display:grid;grid-template-columns:repeat(3,minmax(92px,112px));gap:10px}",
@@ -1370,6 +1373,7 @@
         ".fz-toggle{font-size:11px;line-height:18px;padding:0 10px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);background:none;color:var(--dsw-alias-label-tertiary);cursor:pointer}",
         ".fz-toggle.on{border-color:#ffd54f;color:#ffd54f;background:rgba(255,213,79,.07)}",
         ".fz-toggle.act{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 8%,transparent)}",
+        ".fz-toggle.act.on{border-color:#ffd54f;color:#ffd54f;background:rgba(255,213,79,.14)}",
         ".fz-chuan-line{stroke-dasharray:120;stroke-dashoffset:120;animation:fz-draw 1.6s ease forwards}",
         "@keyframes fz-draw{to{stroke-dashoffset:0}}",
         ".fz-pulse{animation:fz-pulse 2s ease-in-out infinite}",
@@ -1636,7 +1640,7 @@
           const z2 = -x1 * sy + z1 * cp * cy;
           const x2 = x1 * cy + z1 * cp * sy;
           const sc = P / (P - z2);
-          return { sx: 170 + x2 * sc, sy: 150 + y2 * sc, d: z2 };
+          return { sx: 190 + x2 * sc, sy: 165 + y2 * sc, d: z2 };
         };
         const eclPos = (lon) => {
           const rad = (lon - 90) * Math.PI / 180;
@@ -1647,23 +1651,20 @@
         const leftPanel = h("div", { className: "fz-half" },
           h("span", { className: "fz-half-title" }, "黄道盘 · 宿度与宫位（0°=春分）"),
           h("svg", { viewBox: "0 0 460 460", className: "fz-svg" },
-            h("defs", null,
-              h("radialGradient", { id: uid + "bg", cx: "50%", cy: "34%", r: "74%" },
-                h("stop", { offset: "0%", stopColor: "#ffffff10" }),
-                h("stop", { offset: "100%", stopColor: "#0000006b" }))),
-            h("circle", { cx: FZ_C, cy: FZ_C, r: 224, fill: `url(#${uid}bg)` }),
-            Array.from({ length: 28 }, (_, i) => {
-              const a = i * (360 / 28);
-              const [x0, y0] = fzPt(a, 146, FZ_C, FZ_C);
-              const [x1, y1] = fzPt(a, 137, FZ_C, FZ_C);
-              return h("line", { key: "s" + i, x1: x0, y1: y0, x2: x1, y2: y1, stroke: i % 7 === 0 ? "#ffffff3d" : "#ffffff1a", strokeWidth: i % 7 === 0 ? 1.6 : 1 });
-            }),
-            Array.from({ length: 36 }, (_, i) => {
-              const a = i * 10;
-              const [x0, y0] = fzPt(a, 192, FZ_C, FZ_C);
-              const [x1, y1] = fzPt(a, i % 3 === 0 ? 182 : 188, FZ_C, FZ_C);
-              return h("line", { key: "k" + i, x1: x0, y1: y0, x2: x1, y2: y1, stroke: "#ffffff26", strokeWidth: i % 3 === 0 ? 1.4 : 1 });
-            }),
+            h("circle", { cx: FZ_C, cy: FZ_C, r: 224, fill: "#0d1216", stroke: "rgba(255,213,79,.25)", strokeWidth: 1.4, className: "fz-glow" }),
+            h("g", { className: "fz-glow-w" },
+              Array.from({ length: 28 }, (_, i) => {
+                const a = i * (360 / 28);
+                const [x0, y0] = fzPt(a, 146, FZ_C, FZ_C);
+                const [x1, y1] = fzPt(a, 137, FZ_C, FZ_C);
+                return h("line", { key: "s" + i, x1: x0, y1: y0, x2: x1, y2: y1, stroke: i % 7 === 0 ? "#ffffff42" : "#ffffff1d", strokeWidth: i % 7 === 0 ? 1.6 : 1 });
+              }),
+              Array.from({ length: 36 }, (_, i) => {
+                const a = i * 10;
+                const [x0, y0] = fzPt(a, 192, FZ_C, FZ_C);
+                const [x1, y1] = fzPt(a, i % 3 === 0 ? 182 : 188, FZ_C, FZ_C);
+                return h("line", { key: "k" + i, x1: x0, y1: y0, x2: x1, y2: y1, stroke: "#ffffff2c", strokeWidth: i % 3 === 0 ? 1.4 : 1 });
+              })),
             h("text", { x: FZ_C, y: 30, textAnchor: "middle", className: "fz-gong-en" }, "春分 0°"),
             Array.from({ length: 12 }, (_, i) => {
               const a0 = i * 30 - 15;
@@ -1695,7 +1696,7 @@
                 h("text", { x: lx, y: ly + 4, textAnchor: "middle", className: "fz-shen-label", fill: inMing ? "#ffd54f" : (isHover ? col : undefined) }, xingName(xing)));
             }),
             h("g", null,
-              h("circle", { cx: FZ_C, cy: FZ_C, r: 84, fill: "#00000055", stroke: "#ffffff22" }),
+              h("circle", { cx: FZ_C, cy: FZ_C, r: 84, fill: "#0a0e12d9", stroke: "#ffffff22" }),
               h("text", { x: FZ_C, y: FZ_C - 12, textAnchor: "middle", className: "fz-center-t1" }, "命宫"),
               h("text", { x: FZ_C, y: FZ_C + 8, textAnchor: "middle", className: "fz-center-t2" }, `${d.ming_gong ?? "—"}宫`),
               h("text", { x: FZ_C, y: FZ_C + 24, textAnchor: "middle", className: "fz-center-t3" }, `命度 ${d.ming_du ?? "—"}`))));
@@ -1720,7 +1721,7 @@
               Object.entries(FZ_ORBIT_R).map(([xing, r]) => h("div", {
                 key: "o" + xing,
                 className: "fz-orbit3d",
-                style: { width: r * 2, height: r * 2, border: `1px solid ${xing === "地" ? "#ffffff3d" : "#ffffff2e"}` },
+                style: { width: r * 2, height: r * 2, border: `1px solid ${(FZ_PLANET[xing] || "#ffffff")}55` },
               })),
               Object.keys(FZ_ORBIT_R).map((xing) => {
                 const r = FZ_ORBIT_R[xing];
@@ -1764,7 +1765,7 @@
                   onClick: () => enter(xing),
                 });
               })),
-            h("svg", { className: "fz-ovsvg", viewBox: "0 0 340 300" },
+            h("svg", { className: "fz-ovsvg", viewBox: "0 0 380 330" },
               Array.from({ length: 12 }, (_, i) => {
                 const a = i * 30;
                 const rad = (a - 90) * Math.PI / 180;
@@ -1829,6 +1830,7 @@
                 const p = proj(x, z);
                 return h("span", { className: "fz-bl gold", style: { left: p.sx, top: p.sy - 26, zIndex: 600 } }, `命宫${d.ming_gong ?? ""}`);
               })()),
+            h("span", { className: "fz-caminfo" }, `俯仰 ${Math.round(pitch)}° · 方位 ${Math.round(yaw)}°`),
             h("div", { className: "fz-cambtns" },
               [["俯视", 85], ["示意", 60], ["侧视", 25]].map(([n, v]) => h("button", {
                 key: n, type: "button",
