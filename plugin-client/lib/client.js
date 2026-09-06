@@ -1890,18 +1890,20 @@
           }
         }
         // 3D 投影（与 CSS 变换 rotateY(yaw) rotateX(-pitch) scale(zoom) 一致 —— 转台式相机：
-        // 近侧(z>0)投影向下 → 正俯视，近大远小正确；CSS scale(s) 只缩放 x/y（z 不变）。
+        // 近侧(z>0)投影向下 → 正俯视，近大远小正确；缩放为真相机推进（perspective=P/zoom），
+        // 场景坐标与深度不变 → 环/球/标签等比缩放无变形。
         const P = 1050;
+        const Pp = P / zoom;
         const RAD = Math.PI / 180;
         const proj = (x, z) => {
           const cy = Math.cos(yaw * RAD), sy = Math.sin(yaw * RAD);
           const cp = Math.cos(pitch * RAD), sp = Math.sin(pitch * RAD);
-          const x1 = x * zoom;
+          const x1 = x;
           const z1 = z;
           const y2 = z1 * sp;
           const z2 = -x1 * sy + z1 * cp * cy;
           const x2 = x1 * cy + z1 * cp * sy;
-          const sc = P / (P - z2);
+          const sc = Pp / (Pp - z2);
           return { sx: 190 + x2 * sc, sy: 165 + y2 * sc, d: z2 };
         };
         const orbitPos = (lon, r) => {
@@ -2023,7 +2025,7 @@
         };
         const rightPanel = h("div", { className: "fz-half" },
           h("span", { className: "fz-half-title" }, `${geoC ? "地心黄道天球" : "日心轨道图"} · 拖拽转视角 / 滚轮缩放（0°=春分）`),
-          h("div", { className: "fz-scene",
+          h("div", { className: "fz-scene", style: { perspective: `${Pp}px` },
             onPointerDown: (e) => { dragRef.current = { sx: e.clientX, sy: e.clientY, yaw, pitch }; },
             onPointerMove: (e) => {
               if (!dragRef.current) return;
@@ -2043,7 +2045,7 @@
             onPointerLeave: () => { dragRef.current = null; },
             onWheel: (e) => setZoom(Math.max(0.6, Math.min(1.7, zoom * (e.deltaY < 0 ? 1.08 : 0.93)))),
           },
-            h("div", { className: "fz-space", style: { transform: `rotateY(${yaw}deg) rotateX(${-pitch}deg) scale(${zoom})` } },
+            h("div", { className: "fz-space", style: { transform: `rotateY(${yaw}deg) rotateX(${-pitch}deg)` } },
               h("div", { className: "fz-eclband", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, borderRadius: "50%", transform: `translate(-50%,-50%) translate3d(0,13.6px,0) rotateX(90deg)` } }),
               h("div", { className: "fz-eclband", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, borderRadius: "50%", transform: `translate(-50%,-50%) translate3d(0,-13.6px,0) rotateX(90deg)` } }),
               h("div", { className: "fz-ecl", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, borderRadius: "50%", transform: `translate(-50%,-50%) rotateX(90deg)` } }),

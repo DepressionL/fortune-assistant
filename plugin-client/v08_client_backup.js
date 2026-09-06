@@ -469,7 +469,7 @@
         const r = rows[Math.min(sel, rows.length - 1)];
         return h("div", { className: "ft-sec" },
           h("div", { className: "ft-sec-h" },
-            `大运流年速览（自 ${d.liunian_anchor ?? ""} 年起；确定性关系事实，不断吉凶）`),
+            `大运流年速览（自 ${d.liunian_start ?? d.liunian_anchor ?? ""} 年起；确定性关系事实，不断吉凶）`),
           h("div", { className: "ft-tl", role: "tablist" },
             rows.map((x, i) => h("button", {
               key: x.year, type: "button", role: "tab",
@@ -508,6 +508,14 @@
         if (c.solar_used) pills.push(h("span", { className: "ft-pill" }, `排盘 ${c.solar_used}`));
         if (c.steps && c.steps.some((s) => String(s).includes("真太阳时"))) {
           pills.push(h("span", { className: "ft-pill" }, "真太阳时"));
+        }
+        if (c.night_zi) {
+          pills.push(h("span", { className: "ft-pill ft-warn", title: "排盘时刻落夜子时（23:00–23:59），两换日口径日柱不同" },
+            `夜子时 · 本盘 ${(c.pillars ?? [])[2]?.gan_zhi ?? ""}`));
+          if (c.alt_day_ganzhi) {
+            pills.push(h("span", { className: "ft-pill" },
+              `另一口径日柱 ${c.alt_day_ganzhi}`));
+          }
         }
         if (c.dayun && c.dayun.length) {
           pills.push(h("span", { className: "ft-pill" },
@@ -762,6 +770,13 @@
                   key: `g${i}`, className: "ft-pair-reason",
                 }, p)))
             : null,
+          d.notes && d.notes.length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "口径与备注"),
+                d.notes.map((n2, i) => h("div", {
+                  key: `n${i}`, className: "ft-pair-reason",
+                }, n2)))
+            : null,
           h(ContentText, { block, max: 1500 })));
       }
 
@@ -836,7 +851,7 @@
                     ? `动爻（${selL.value === 9 ? "老阳○" : "老阴×"}），变卦中此爻阴阳翻转。`
                     : "静爻，不变。"}`))
             : null,
-          (d.topic && d.topic !== "综合" && d.topic_focus)
+          (d.topic && d.topic_focus)
             ? h("div", { className: "ft-sec" },
                 h("div", { className: "ft-sec-h" },
                   `占题：${d.topic}${d.question ? `「${d.question}」` : ""}`
@@ -1184,6 +1199,13 @@
                           className: `ft-ev-tool ${TOOL_PILL[e.tool] ?? ""}`,
                           title: e.tool ?? "",
                         }, TOOL_LABEL[e.tool] ?? e.tool ?? "—"),
+                        h("span", {
+                          className: `ft-ev-tool ${e.stance === "+" ? "ft-ok"
+                            : e.stance === "−" ? "ft-warn" : ""}`,
+                          title: e.stance === "+" ? "正面/有利证据"
+                            : e.stance === "−" ? "负面/不利证据" : "中性事实",
+                        }, e.stance === "+" ? "[+] 正面"
+                          : e.stance === "−" ? "[−] 负面" : "[○] 事实"),
                         h("span", { className: "ft-ev-field" },
                           (e.field ?? "").replace(
                             /wangshuai|tiaohou|tongguan|geju|bingyao/g,
@@ -1868,18 +1890,20 @@
           }
         }
         // 3D 投影（与 CSS 变换 rotateY(yaw) rotateX(-pitch) scale(zoom) 一致 —— 转台式相机：
-        // 近侧(z>0)投影向下 → 正俯视，近大远小正确；CSS scale(s) 只缩放 x/y（z 不变）。
+        // 近侧(z>0)投影向下 → 正俯视，近大远小正确；缩放为真相机推进（perspective=P/zoom），
+        // 场景坐标与深度不变 → 环/球/标签等比缩放无变形。
         const P = 1050;
+        const Pp = P / zoom;
         const RAD = Math.PI / 180;
         const proj = (x, z) => {
           const cy = Math.cos(yaw * RAD), sy = Math.sin(yaw * RAD);
           const cp = Math.cos(pitch * RAD), sp = Math.sin(pitch * RAD);
-          const x1 = x * zoom;
+          const x1 = x;
           const z1 = z;
           const y2 = z1 * sp;
           const z2 = -x1 * sy + z1 * cp * cy;
           const x2 = x1 * cy + z1 * cp * sy;
-          const sc = P / (P - z2);
+          const sc = Pp / (Pp - z2);
           return { sx: 190 + x2 * sc, sy: 165 + y2 * sc, d: z2 };
         };
         const orbitPos = (lon, r) => {
@@ -2001,7 +2025,7 @@
         };
         const rightPanel = h("div", { className: "fz-half" },
           h("span", { className: "fz-half-title" }, `${geoC ? "地心黄道天球" : "日心轨道图"} · 拖拽转视角 / 滚轮缩放（0°=春分）`),
-          h("div", { className: "fz-scene",
+          h("div", { className: "fz-scene", style: { perspective: `${Pp}px` },
             onPointerDown: (e) => { dragRef.current = { sx: e.clientX, sy: e.clientY, yaw, pitch }; },
             onPointerMove: (e) => {
               if (!dragRef.current) return;
@@ -2021,7 +2045,7 @@
             onPointerLeave: () => { dragRef.current = null; },
             onWheel: (e) => setZoom(Math.max(0.6, Math.min(1.7, zoom * (e.deltaY < 0 ? 1.08 : 0.93)))),
           },
-            h("div", { className: "fz-space", style: { transform: `rotateY(${yaw}deg) rotateX(${-pitch}deg) scale(${zoom})` } },
+            h("div", { className: "fz-space", style: { transform: `rotateY(${yaw}deg) rotateX(${-pitch}deg)` } },
               h("div", { className: "fz-eclband", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, borderRadius: "50%", transform: `translate(-50%,-50%) translate3d(0,13.6px,0) rotateX(90deg)` } }),
               h("div", { className: "fz-eclband", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, borderRadius: "50%", transform: `translate(-50%,-50%) translate3d(0,-13.6px,0) rotateX(90deg)` } }),
               h("div", { className: "fz-ecl", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, borderRadius: "50%", transform: `translate(-50%,-50%) rotateX(90deg)` } }),
