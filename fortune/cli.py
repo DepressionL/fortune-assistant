@@ -674,6 +674,8 @@ def comprehensive(
     liuyao_topic: str = typer.Option("综合", "--liuyao-topic", help="六爻占问主题"),
     coin_back: str = typer.Option("yang", "--coin-back", help="铜钱约定 yang|yin"),
     anchor_year: int | None = typer.Option(None, "--anchor-year", help="近运锚年（默认当前年）"),
+    include: str = typer.Option("", "--include",
+                                help="合参术数（逗号分隔：liuren,qimen,qizheng；缺省全部）"),
     meta_json: str | None = typer.Option(None, "--meta-json"),
 ):
     """综合分析（无 LLM 聚合：确定性规则引擎 + 已核验内容检索，见 docs/修复与改进计划.md §4）。"""
@@ -692,13 +694,20 @@ def comprehensive(
         lyao = {"backs": vals, "coin_back": coin_back,
                 "date": liuyao_date or _dt.date.today().strftime("%Y-%m-%d"),
                 "topic": liuyao_topic}
-    res = comp_run(birth, config, liuyao=lyao, anchor_year=anchor_year)
+    inc = [x.strip() for x in include.split(",") if x.strip()] if include else None
+    if inc:
+        known = {"liuren", "qimen", "qizheng"}
+        bad = [x for x in inc if x not in known]
+        if bad:
+            _fail(f"--include 含未知术数 {bad}，可用：{sorted(known)}")
+    res = comp_run(birth, config, liuyao=lyao, anchor_year=anchor_year, include=inc)
     typer.echo(res.markdown())
     _dump_meta(meta_json, {"tool": "comprehensive",
                            "context": res.context, "matrix": res.matrix,
                            "consensus": res.consensus,
                            "conclusions": [dataclasses.asdict(c) for c in res.conclusions],
-                           "conflicts": res.conflicts, "notes": res.notes})
+                           "conflicts": res.conflicts, "notes": res.notes,
+                           "hepai": res.hepai})
 
 
 def main() -> None:  # pragma: no cover

@@ -290,6 +290,12 @@
         "border-radius:8px;padding:6px 8px;margin:5px 0;background:var(--dsw-alias-bg-layer-1);",
         "animation:ft-rise .24s ease-out both;animation-delay:calc(var(--n,0)*60ms)}",
         ".ft-ev-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}",
+        ".ft-hepai-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12px;padding:2px 0}",
+        ".ft-hepai-k{font-weight:700;color:var(--dsw-alias-label-secondary);min-width:66px;flex:0 0 auto}",
+        ".ft-hepai-v{color:var(--dsw-alias-label-primary)}",
+        ".ft-hepai-school{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:3px 0}",
+        ".ft-chip{display:inline-block;font-size:11px;line-height:17px;padding:0 7px;border-radius:8px;",
+        "border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);margin:1px 0}",
         ".ft-ev-tool{font-size:10px;line-height:16px;padding:0 6px;border-radius:7px;",
         "border:1px solid var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}",
         ".ft-ev-tool.ft-ok{color:var(--dsw-alias-state-success-primary);",
@@ -388,6 +394,7 @@
       // 证据链工具徽章中文显示名（悬停 title 保留原名）
       const TOOL_LABEL = { bazi: "八字", ziwei: "紫微", liuyao: "六爻", meihua: "梅花",
                            chenggu: "称骨", xiaoliuren: "小六壬",
+                           liuren: "大六壬", qimen: "奇门遁甲", qizheng: "七政四余",
                            comprehensive: "综合分析", context: "历法上下文" };
       function WuxingPanel({ st }) {
         const max = Math.max(0.01, ...Object.values(st.scores ?? {}));
@@ -1196,6 +1203,32 @@
                   /wangshuai|tiaohou|tongguan|geju|bingyao/g,
                   (m) => SCHOOL_LABEL[m] ?? m)}`)))
             : null,
+          d.hepai && d.hepai.length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "多术数合参（盘面事实并列，不调和）"),
+                d.hepai.map((hp, i) => h("div", { key: i, className: "ft-panel", style: { "--n": i } },
+                  h("div", { className: "ft-panel-h" }, `${TOOL_LABEL[hp.tool] ?? hp.title ?? ""} · 合参`),
+                  hp.ok === false
+                    ? h("div", { className: "ft-pair-reason" }, hp.note ?? "模块不可用")
+                    : h("div", { className: "ft-hepai" },
+                        (hp.markers ?? []).map((mk, k) => h("div", { key: "m" + k, className: "ft-hepai-row" },
+                          h("span", { className: "ft-hepai-k" }, mk.key),
+                          h("span", { className: "ft-hepai-v" }, mk.value),
+                          mk.source ? h("span", { className: "ft-ev-src" }, mk.source) : null)),
+                        (hp.schools ?? []).map((s, k) => h("div", { key: "s" + k, className: "ft-hepai-school" },
+                          h("span", { className: "ft-hepai-k" }, s.name),
+                          s.items
+                            ? s.items.map((it, j) => h("span", {
+                                key: j, className: "ft-chip",
+                                title: it.note ?? "",
+                              }, `${it.name} → ${it.value}`))
+                            : h("span", { className: "ft-hepai-v" },
+                                `${s.value ?? ""}${s.note ? "（" + s.note + "）" : ""}`))),
+                        (hp.ganzhi ?? []).map((g, k) => h("div", { key: "g" + k, className: "ft-hepai-row" },
+                          h("span", { className: "ft-hepai-k" }, "干支关系"),
+                          h("span", { className: "ft-hepai-v" }, `${g.fact}（${g.basis ?? ""}）`))),
+                        hp.note ? h("div", { className: "ft-pair-reason" }, hp.note) : null))))
+            : null,
           d.notes && d.notes.length
             ? h("div", { className: "ft-sec" },
                 h("div", { className: "ft-sec-h" }, "备注"),
@@ -1369,6 +1402,7 @@
         ".fz-cell.fu{border-color:#ffd54f;box-shadow:0 0 0 1px #ffd54f44,0 4px 14px rgba(255,213,79,.12)}",
         ".fz-cell.shi{border-color:#81d4fa;box-shadow:0 0 0 1px #81d4fa44,0 4px 14px rgba(129,212,250,.1)}",
         ".fz-cell.sweep{animation:fz-sweep 2.7s linear infinite;animation-delay:var(--d,0s)}",
+        ".fz-cell.diff{outline:1px dashed rgba(255,213,79,.45);outline-offset:-4px}",
         "@keyframes fz-sweep{0%,86%,100%{box-shadow:inset 0 1px 0 #ffffff0d}90%{box-shadow:0 0 0 2px var(--dsw-alias-brand-primary),0 0 16px rgba(255,213,79,.4)}}",
         ".fz-cell-ming{font-size:10px;color:var(--dsw-alias-label-tertiary)}",
         ".fz-cell-gan{font-size:23px;font-weight:800;color:#ffcc80;line-height:1.15}",
@@ -1377,8 +1411,9 @@
         ".fz-cell-men{font-size:12px;font-weight:600}",
         ".fz-cell-men.ji{color:#4ade80}.fz-cell-men.ban{color:#fb923c}.fz-cell-men.xiong{color:#f87171}",
         ".fz-cell-shen{position:absolute;bottom:8px;right:10px;font-size:10px;color:#ffcc80}",
-        ".fz-tag{position:absolute;top:-9px;left:10px;font-size:10px;line-height:16px;padding:0 7px;border-radius:8px;color:#0d1117;background:#ffd54f;font-weight:700}",
+        ".fz-tag{position:absolute;top:-9px;left:10px;font-size:10px;line-height:16px;padding:0 7px;border-radius:8px;color:#0d1117;background:#ffd54f;font-weight:700;animation:fz-pop .32s ease}",
         ".fz-tag.shi{background:#81d4fa}",
+        "@keyframes fz-pop{0%{transform:translateY(-5px) scale(.6);opacity:0}60%{transform:translateY(1px) scale(1.1)}100%{transform:translateY(0) scale(1)}}",
         ".fz-legend{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:460px}",
         ".fz-chip{font-size:11px;line-height:18px;padding:0 8px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}",
         ".fz-chip-sc{border-style:dashed}",
@@ -1518,6 +1553,15 @@
         const juSchools = Array.isArray(d.ju_schools) ? d.ju_schools : [];
         const chart = juSchools.find((s) => s.key === juK) ?? d;
         const menPan = (menK === "xunshou" && chart.men_pan_alt) ? chart.men_pan_alt : chart.men_pan;
+        const altPan = chart.men_pan_alt;
+        const diffSet = new Set();
+        if (altPan) {
+          for (const g of Object.keys(menPan)) {
+            if (altPan[String(g)] !== menPan[String(g)]) diffSet.add(g);
+          }
+        }
+        const menSchools = Array.isArray(chart.men_schools) ? chart.men_schools
+          : (Array.isArray(d.men_schools) ? d.men_schools : []);
         const cells = FZ_LUO_ORDER.map((g, idx) => ({
           gong: g,
           di: chart.di_pan[String(g)] ?? "—",
@@ -1532,7 +1576,6 @@
         }, label);
         const menCls = (m) => /^(开门|休门|生门)$/.test(m) ? "ji"
           : /^(伤门|杜门|景门)$/.test(m) ? "ban" : "xiong";
-        const menSchools = Array.isArray(chart.men_schools) ? chart.men_schools : [];
         ensureFzStyle();
         return h(ToolRow, {
           block, title: `奇门遁甲 · ${chart.dun ?? ""}${chart.ju ?? ""}局`,
@@ -1559,15 +1602,16 @@
               title: s.note ?? "",
               onClick: () => setMenK(s.key),
             }, `${s.name} → 落${FZ_GONGCN[s.zhi_shi_gong]}宫`))) : null,
-          h("div", { className: "fz-grid" },
+          h("div", { key: (juK ?? "chaibu") + "|" + menK, className: "fz-grid" },
             cells.map((c) => {
               const isFu = c.xing === chart.zhi_fu_xing;
               const isShi = c.men === chart.zhi_shi_men;
+              const isDiff = diffSet.has(String(c.gong));
               const mid = c.gong === 5;
               const qi = "乙丙丁".includes(c.di);
               return h("div", {
                 key: c.gong,
-                className: "fz-cell sweep" + (isFu ? " fu" : "") + (isShi ? " shi" : ""),
+                className: "fz-cell sweep" + (isFu ? " fu" : "") + (isShi ? " shi" : "") + (isDiff ? " diff" : ""),
                 style: { "--d": (-(c.idx * 0.3)).toFixed(1) + "s" },
                 onMouseEnter: () => setHover(c.gong),
                 onMouseLeave: () => setHover(null),
@@ -1583,6 +1627,7 @@
           h("div", { className: "fz-legend" },
             hover ? h("span", { className: "fz-chip" }, ((c) =>
               `${FZ_GONGCN[c.gong]}宫：地盘${c.di} · ${c.xing} · ${c.men} · ${c.shen}`)(cells.find((x) => x.gong === hover))) : null,
+            diffSet.size > 0 ? h("span", { className: "fz-chip", style: { borderColor: "#ffd54f" } }, `两派门盘差异 ${diffSet.size} 宫（虚线框）`) : null,
             chart.fu_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "伏吟") : null,
             chart.fan_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "反吟") : null,
             h("span", { className: "fz-chip", style: { borderColor: "#4ade80" } }, "开休生·吉"),
@@ -1613,6 +1658,7 @@
         const [hover, setHover] = useState(null);
         const [pin, setPin] = useState(null);
         const [ziqiIdx, setZiqiIdx] = useState(null);
+        const [lonK, setLonK] = useState(null);   // 黄经基准（null=默认回归黄道）
         const [mode, setMode] = useState(fzReduced() ? "actual" : "run");
         const [view, setView] = useState("helio");
         const [yaw, setYaw] = useState(0);
@@ -1627,22 +1673,26 @@
         useFzTicker(mode === "run", tRef, setTick, setFps);
         const t = mode === "run" ? tRef.current : 0;
         const uid = "fzqz" + (++fzUid);
-        const stars = d.stars ?? {};
-        const rows = d.ziqi_rows ?? [];
-        const selLon = (d.ziqi_sel && d.ziqi_sel.lon) ?? (rows[0] && rows[0].lon) ?? 0;
+        const lonSchools = Array.isArray(d.longitude_schools) ? d.longitude_schools : [];
+        const SRC = lonSchools.find((s) => s.key === lonK) ?? d;
+        const stars = SRC.stars ?? {};
+        const rows = SRC.ziqi_rows ?? [];
+        const selLon = (SRC.ziqi_sel && SRC.ziqi_sel.lon) ?? (rows[0] && rows[0].lon) ?? 0;
         const ziqiLon = ziqiIdx != null && rows[ziqiIdx] ? rows[ziqiIdx].lon : selLon;
+        const mingGong = SRC.ming_gong ?? d.ming_gong;
+        const mingDu = SRC.ming_du ?? d.ming_du;
         const gongIdxOf = (zhi) => (10 - FZ_ZHI.indexOf(zhi) + 12) % 12;
-        const mingIdx = gongIdxOf(d.ming_gong ?? "");
+        const mingIdx = gongIdxOf(mingGong ?? "");
         const starList = Object.entries(stars);
         const curLon = (xing, lon) => (lon + (t / (FZ_ORBIT_DUR[xing] ?? 60)) * 360) % 360;
         const disp = starList
           .map(([xing, v]) => ({ xing, lon: curLon(xing, xing === "气" ? ziqiLon : v.lon) }))
           .sort((a, b) => a.lon - b.lon);
         // 命宫弧（地支宫 ↔ 黄经 30° 区间：戌宫0°=白羊宫）
-        const mingA0 = gongIdxOf(d.ming_gong ?? "") * 30;
+        const mingA0 = gongIdxOf(mingGong ?? "") * 30;
         const mingA1 = mingA0 + 30;
         // 命度（宿名+度 → 黄经）
-        const mdu = /^(.{1,2})([\d.]+)/.exec(String(d.ming_du ?? ""));
+        const mdu = /^(.{1,2})([\d.]+)/.exec(String(mingDu ?? ""));
         const mingSuIdx = mdu ? FZ_SU_NAMES.indexOf(mdu[1]) : -1;
         const mingLon = (mdu && mingSuIdx >= 0) ? (FZ_SU_BOUNDS[mingSuIdx] + parseFloat(mdu[2])) % 360 : null;
         // 信息（悬停 > 锁定）
@@ -1758,8 +1808,8 @@
             h("g", null,
               h("circle", { cx: FZ_C, cy: FZ_C, r: 84, fill: "#0a0e12d9", stroke: "#ffffff22" }),
               h("text", { x: FZ_C, y: FZ_C - 12, textAnchor: "middle", className: "fz-center-t1" }, "命宫"),
-              h("text", { x: FZ_C, y: FZ_C + 8, textAnchor: "middle", className: "fz-center-t2" }, `${d.ming_gong ?? "—"}宫`),
-              h("text", { x: FZ_C, y: FZ_C + 24, textAnchor: "middle", className: "fz-center-t3" }, `命度 ${d.ming_du ?? "—"}`)));
+              h("text", { x: FZ_C, y: FZ_C + 8, textAnchor: "middle", className: "fz-center-t2" }, `${mingGong ?? "—"}宫`),
+              h("text", { x: FZ_C, y: FZ_C + 24, textAnchor: "middle", className: "fz-center-t3" }, `命度 ${mingDu ?? "—"}`)));
         }
         const leftPanel = h("div", { className: "fz-half" },
           h("span", { className: "fz-half-title" }, "黄道盘 · 宿度与宫位（0°=春分）"),
@@ -1771,7 +1821,7 @@
               const col = FZ_PLANET[xing] || "#888";
               const isHover = hover === xing;
               const [gz] = fzGongOf(lon);
-              const inMing = gz === d.ming_gong;
+              const inMing = gz === mingGong;
               const ghost = FZ_MODEL_GHOST.has(xing);
               const sl = slotMeta[xing];
               const [lx, ly] = sl ? fzPt(lon, SLOT_R[sl.layer] ?? 200, FZ_C, FZ_C) : [x, y];
@@ -1796,6 +1846,7 @@
           if (xing === "日") return sunLon;
           if (xing === "月") return moonLon;
           if (xing === "地") return earthLon;
+          if (xing === "气") return ziqiLon;   // 紫气随口径切换，3D 黄道点/标签同步跳位
           return curLon(xing, stars[xing]?.lon ?? 0);
         };
         const isHi = (xing) => hover === xing || pin === xing;
@@ -1977,7 +2028,7 @@
               (() => {
                 const [x, z] = orbitPos(mingA0 + 15, FZ_ECL_R);
                 const p = proj(x, z);
-                return h("span", { className: "fz-bl gold", style: { left: p.sx, top: p.sy - 26, zIndex: 600 } }, `命宫${d.ming_gong ?? ""}`);
+                return h("span", { className: "fz-bl gold", style: { left: p.sx, top: p.sy - 26, zIndex: 600 } }, `命宫${mingGong ?? ""}`);
               })()),
             h("span", { className: "fz-caminfo" }, `俯仰 ${Math.round(pitch)}° · 方位 ${Math.round(yaw)}°${fps ? ` · ${fps}Hz` : ""}`),
             h("div", { className: "fz-cambtns" },
@@ -1994,7 +2045,7 @@
               h("button", { type: "button", className: "fz-toggle sm" + (yaw === 0 && pitch === 60 && zoom === 1 ? " on" : ""), onClick: () => { setYaw(0); setPitch(60); setZoom(1); } }, "复位"))));
         // ---------- ③ 中央信息条 ----------
         const infoBar = h("div", { className: "fz-info" }, infoObj == null
-          ? `命宫${d.ming_gong ?? "—"} · 命度 ${d.ming_du ?? "—"}${d.hua_yao && Object.keys(d.hua_yao).length ? " · 禄曜" + Object.keys(d.hua_yao)[0] : ""} · ${pin ? "已锁定「" + xingName(pin) + "」（再次点击取消）" : "悬停星体查看详情"}`
+          ? `命宫${mingGong ?? "—"} · 命度 ${mingDu ?? "—"}${d.hua_yao && Object.keys(d.hua_yao).length ? " · 禄曜" + Object.keys(d.hua_yao)[0] : ""} · ${pin ? "已锁定「" + xingName(pin) + "」（再次点击取消）" : "悬停星体查看详情"}`
           : `${xingName(infoObj.xing)} · 黄经 ${infoObj.lon.toFixed(1)}° · ${infoObj.gz}宫${infoObj.gcn ? "（" + infoObj.gcn + "）" : ""} · ${infoObj.su}宿${infoObj.suD != null ? " " + infoObj.suD + "°" : ""}${infoObj.hua ? " · 化" + infoObj.hua : ""}${infoObj.xing === "气" ? "（当前口径 " + (rows[ziqiIdx ?? 0]?.name ?? "") + "）" : ""}${pin === infoObj.xing ? " · 已锁定，再次点击取消" : ""}`);
         // ---------- ④ 底部控制器 ----------
         const controls = h("div", { className: "fz-controls" },
@@ -2003,6 +2054,14 @@
             h("button", { type: "button", className: "fz-toggle act" + (mode === "actual" ? " on" : ""), onClick: () => { tRef.current = 0; setMode("actual"); } }, "⏺ 定格实际"),
             h("span", { className: "fz-chip" }, `演示 ${Math.round(t)} 天${demoStr}`),
             h("input", { type: "range", className: "fz-range", min: 0, max: 400, step: 1, value: Math.min(400, Math.round(t)), title: "演示进度", onChange: (e) => { tRef.current = +e.target.value; setTick((x) => x + 1); } })),
+          lonSchools.length > 1 ? h("div", { className: "fz-toggles" },
+            h("span", { className: "fz-chip" }, "黄道基准："),
+            lonSchools.map((s) => h("button", {
+              key: s.key, type: "button",
+              className: "fz-toggle act" + ((lonK ?? "tropical") === s.key ? " on" : ""),
+              title: s.note ?? "",
+              onClick: () => setLonK(lonK === s.key ? null : s.key),
+            }, s.name))) : null,
           rows.length > 1 ? h("div", { className: "fz-toggles" },
             h("span", { className: "fz-chip" }, "紫气口径："),
             rows.map((r, i) => h("button", {
@@ -2011,9 +2070,9 @@
               onClick: () => setZiqiIdx(ziqiIdx === i ? null : i),
             }, `${r.name} ${Number(r.lon).toFixed(1)}°`))) : null);
         return h(ToolRow, {
-          block, title: `七政四余 · 命宫${d.ming_gong ?? "—"}`,
+          block, title: `七政四余 · 命宫${mingGong ?? "—"}`,
           pill: h("span", { className: "ft-pill" },
-            `命度 ${d.ming_du ?? "—"}${d.hua_yao && Object.keys(d.hua_yao).length ? " · 禄曜" + Object.keys(d.hua_yao)[0] : ""}`),
+            `命度 ${mingDu ?? "—"}${d.hua_yao && Object.keys(d.hua_yao).length ? " · 禄曜" + Object.keys(d.hua_yao)[0] : ""}`),
         },
         h("div", { className: "fz-wrap" },
           h("div", { className: "fz-split" }, leftPanel, rightPanel),

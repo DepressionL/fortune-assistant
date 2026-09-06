@@ -64,9 +64,11 @@ JU_TABLE = {
 }
 
 NOTES = {
-    "三元": "三元定局两派并算：①拆补法（日干支符头：甲己+子午卯酉=上元、寅申巳亥=中元、"
+    "三元": "三元定局三派并算：①拆补法（日干支符头：甲己+子午卯酉=上元、寅申巳亥=中元、"
             "辰戌丑未=下元）；②茅山法（自交节日起每五日一元：0-4 日上元、5-9 日中元、"
-            "10-14 日下元）。置闰、超神接气未实现，如实标注。",
+            "10-14 日下元）；③置闰法（《秘笈大全》「超神接气置闰诀」：甲己为符头五日一元，"
+            "节前遇符为超、节后遇符为接、符节同日为正授，芒种/大雪处超神累积过九日置闰，"
+            "置闰后三元序列 +15 天；超神累积按每节气 0.2184 日累进自最近正授点计，如实标注）。",
     "中宫": "中五宫寄坤二宫（天禽寄坤、值使落中宫取死门），《秘笈大全》"
             "「惟天禽则无定位，寄西南而属中宫」。",
     "值使": "值使门起法两派并算：①「时支本位宫」法——值使门加时支所在九宫方位"
@@ -127,6 +129,110 @@ def day_yuan_maoshan(dt: "_dt.datetime", jq_dt: "_dt.datetime") -> str:
     """茅山法三元：自交节日起每五日一元（0-4 日上元、5-9 日中元、10-14 日下元）。"""
     days = max(0, (dt - jq_dt).days)
     return ("上元", "中元", "下元")[min(days // 5, 2)]
+
+
+def _jieqi_dt_of(y: int, name: str) -> "_dt.datetime | None":
+    """某年某节气（二十四节气表）交节时刻。"""
+    for yy in (y - 1, y, y + 1):
+        table = Lunar.fromYmdHms(yy, 6, 15, 12, 0, 0).getJieQiTable()
+        if name in table and table[name] is not None:
+            return _solar_dt(table[name])
+    return None
+
+
+def _count_jieqi(from_dt: "_dt.datetime", to_dt: "_dt.datetime") -> int:
+    """from_dt 之后（不含）至 to_dt（含）之间的 24 节气（JU_TABLE 节）个数。"""
+    n = 0
+    for yy in range(from_dt.year - 1, to_dt.year + 2):
+        table = Lunar.fromYmdHms(yy, 6, 15, 12, 0, 0).getJieQiTable()
+        for name, t in table.items():
+            if t is None or name not in JU_TABLE:
+                continue
+            d = _solar_dt(t)
+            if from_dt < d <= to_dt:
+                n += 1
+    return n
+
+
+def zhengshou_anchor(dt: "_dt.datetime") -> "_dt.datetime | None":
+    """最近一次「正授」（符头甲/己日恰逢交节日）≤ dt。"""
+    from lunar_python import Solar
+
+    def gz_of(date):
+        return Solar.fromYmd(date.year, date.month, date.day) \
+            .getLunar().getDayInGanZhi()
+
+    best = None
+    for yy in range(dt.year, dt.year - 46, -1):
+        table = Lunar.fromYmdHms(yy, 6, 15, 12, 0, 0).getJieQiTable()
+        found = []
+        for name, t in table.items():
+            if t is None or name not in JU_TABLE:
+                continue
+            d = _solar_dt(t)
+            if d <= dt and gz_of(d.date())[0] in "甲己":
+                found.append(d)
+        if found:
+            best = max(found)
+            break
+    return best
+
+
+def day_yuan_zhirun(dt: "_dt.datetime", jq_name: str, jq_dt: "_dt.datetime") -> dict:
+    """置闰法三元（《秘笈大全》「超神接气置闰诀」：五日一元、甲己为符头；
+    节前遇符为超、节后遇符为接、符节同日为正授；芒种/大雪处超神累积过九日则置闰，
+    置闰后三元序列 +15 天）。
+
+    实现口径（如实标注）：
+    - 超神累积 = 自最近正授点起，每节气三元（15 日）快于节气（365.2422/24≈15.2184 日）
+      0.2184 日 → 累进至 ≥9 日即置闰（约每 41 节一次，与古法二三年一闰相符）；
+    - 置闰只对置闰点（芒种/大雪）之后的日期生效。
+    """
+    from lunar_python import Solar
+
+    def gz_of(date):
+        return Solar.fromYmd(date.year, date.month, date.day) \
+            .getLunar().getDayInGanZhi()
+
+    def fu_leq(date):
+        d = date
+        while gz_of(d)[0] not in "甲己":
+            d -= _dt.timedelta(days=1)
+        return d
+
+    jq_day = jq_dt.date()
+    fu0 = fu_leq(dt.date())
+    if fu0 == jq_day:
+        relation, base = "正授", fu0
+    elif fu0 < jq_day:
+        relation, base = "超神", fu0
+    else:
+        relation, base = "接气", fu_leq(jq_day - _dt.timedelta(days=1))
+
+    yang = jq_name in ("冬至", "小寒", "大寒", "立春", "雨水", "惊蛰",
+                       "春分", "清明", "谷雨", "立夏", "小满", "芒种")
+    zr_name = "芒种" if yang else "大雪"
+    if yang:
+        zr_dt = _jieqi_dt_of(dt.year if dt.month <= 5 else dt.year + 1, zr_name)
+    else:
+        zr_dt = _jieqi_dt_of(dt.year, zr_name)
+
+    zhijun = False
+    anchor = zhengshou_anchor(jq_dt)
+    if anchor is not None and zr_dt is not None and anchor < zr_dt <= jq_dt:
+        j = _count_jieqi(anchor, zr_dt)
+        drift = 0.2184 * j
+        zhijun = drift >= 9.0
+    if zhijun and dt.date() >= zr_dt.date():
+        base -= _dt.timedelta(days=15)
+
+    yuan_seq = ["上元", "中元", "下元"]
+    idx = (yuan_seq.index(day_yuan(gz_of(base)))
+           + max((dt.date() - base).days, 0) // 5) % 3
+    note = (f"{relation}；{'芒种' if yang else '大雪'}超神累积"
+            f"{'≥9 日已置闰（此后三元 +15 天）' if zhijun else '不足 9 日，未置闰'}")
+    return {"yuan": yuan_seq[idx], "relation": relation, "zhijun": zhijun,
+            "note": note}
 
 
 def men_pan_layout(yang: bool, zhi_fu_gong: int, zhi_shi_men: str,
@@ -291,11 +397,15 @@ def bu_ju(year: int, month: int, day: int, hour: int, minute: int = 0) -> QimenC
     shang, zhong, xia = JU_TABLE[jq]
     yuan_cb = day_yuan(day_gz)
     yuan_ms = day_yuan_maoshan(dt, jq_dt)
+    yuan_zr = day_yuan_zhirun(dt, jq, jq_dt)
 
     variants = []
     for key, name, yuan, note in (
         ("chaibu", "拆补法", yuan_cb, "按日干支符头（甲己+子午卯酉上元、寅申巳亥中元、辰戌丑未下元）归元"),
         ("maoshan", "茅山法", yuan_ms, "自交节日起每五日一元（0-4 上元、5-9 中元、10-14 下元）"),
+        ("zhirun", "置闰法", yuan_zr["yuan"],
+         "超神接气置闰：甲己符头五日一元，节前遇符为超、节后遇符为接、符节同日为正授；"
+         "芒种/大雪超神累积过九日置闰（" + yuan_zr["note"] + "）"),
     ):
         ju = {"上元": shang, "中元": zhong, "下元": xia}[yuan]
         sc = _build(year, month, day, hour, minute, jq, ju, yuan, day_gz, hour_gz)
@@ -306,6 +416,7 @@ def bu_ju(year: int, month: int, day: int, hour: int, minute: int = 0) -> QimenC
             "zhi_fu_gong": sc.zhi_fu_gong, "zhi_shi_men": sc.zhi_shi_men,
             "tian_pan": sc.tian_pan, "men_pan": sc.men_pan,
             "men_pan_alt": sc.men_pan_alt, "shen_pan": sc.shen_pan,
+            "men_schools": sc.men_schools,
             "fu_yin": sc.fu_yin, "fan_yin": sc.fan_yin,
         })
 
@@ -320,6 +431,6 @@ def bu_ju(year: int, month: int, day: int, hour: int, minute: int = 0) -> QimenC
 
 
 __all__ = ["QimenChart", "bu_ju", "governing_jieqi", "governing_jieqi_dt",
-           "day_yuan", "day_yuan_maoshan", "men_pan_layout",
-           "zhi_shi_gong_xunshou", "JU_TABLE", "GONG_XING", "GONG_MEN",
-           "ZHI_GONG", "NOTES"]
+           "day_yuan", "day_yuan_maoshan", "day_yuan_zhirun", "zhengshou_anchor",
+           "men_pan_layout", "zhi_shi_gong_xunshou", "JU_TABLE", "GONG_XING",
+           "GONG_MEN", "ZHI_GONG", "NOTES"]

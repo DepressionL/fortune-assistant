@@ -156,6 +156,37 @@ const FIXTURES = {
     ],
     conflicts: ["用神流派分歧：tongguan 的用神不含最高得票五行 水（并列展示，不调和）。"],
     notes: [],
+    hepai: [
+      { tool: "liuren", title: "大六壬", ok: true,
+        markers: [{ key: "课体", value: "元首课（一上克下）", source: "九宗门" },
+                  { key: "三传", value: "丑 → 寅 → 卯", source: "同上" }],
+        schools: [{ name: "天乙贵人", value: "通行「甲戊庚牛羊」", note: "四库提要言尚沿俗例" }],
+        ganzhi: [{ fact: "日干支 辛亥", basis: "占日干支" }],
+        note: "起课九宗门依《六壬大全》。" },
+      { tool: "qimen", title: "奇门遁甲", ok: true,
+        markers: [{ key: "局", value: "阳遁 2 局（小寒·上元）", source: "起例歌" },
+                  { key: "值符值使", value: "天芮 / 死门（旬首 甲子）", source: "同上" }],
+        schools: [{ name: "三元定局", items: [
+          { name: "拆补法", value: "上元·2局", note: "符头归元" },
+          { name: "茅山法", value: "上元·2局", note: "五日一元" },
+          { name: "置闰法", value: "上元·2局", note: "超神接气置闰" }] },
+          { name: "值使起法", items: [
+            { name: "时支本位宫法", value: "值使落艮八", note: "休门在坤二" },
+            { name: "自旬首宫顺逆数地支", value: "值使落震三", note: "六甲时门归本宫" }] }],
+        ganzhi: [{ fact: "用事日干支 甲子、时干支 乙丑", basis: "用事时刻干支" }],
+        note: "时家奇门。" },
+      { tool: "qizheng", title: "七政四余", ok: true,
+        markers: [{ key: "命宫命度", value: "辰宫 · 命度 角5.87度", source: "安命法" },
+                  { key: "化曜", value: "禄曜 气", source: "十干变曜" }],
+        schools: [{ name: "黄道基准", items: [
+          { name: "回归黄道", value: "ayanamsa 0.00°", note: "瑞士星历" },
+          { name: "恒星黄道·岁差23.72°", value: "ayanamsa 23.72°", note: "现代岁差修正" }] },
+          { name: "紫气口径", items: [
+            { name: "果老·1900", value: "59.2°", note: "" },
+            { name: "立成1910", value: "135.1°", note: "" }] }],
+        ganzhi: [{ fact: "日干 辛 → 禄曜 气（十干变曜）", basis: "化曜与日干" }],
+        note: "七政与罗计孛瑞士星历实测。" },
+    ],
   },
   fortune_liuren: {
     tool: "liuren", year: 1990, month: 6, day: 15, hour: 13, minute: 30,
@@ -280,6 +311,17 @@ walk(comp, (el) => {
 assert.equal(barRows, 5, "旺衰 scores 应渲染为 5 行五行条形图");
 assert.ok([...badgeTexts].some((t) => t.startsWith("覆盖度")), "结论卡应有覆盖度徽章");
 assert.ok([...badgeTexts].some((t) => t.startsWith("方向一致")), "带方向证据的结论应有方向一致徽章");
+// 多术数合参卡片：三术各一张卡，含关键标志行与流派 chips
+let hepaiPanels = 0, hepaiRows = 0, hepaiChips = 0;
+walk(comp, (el) => {
+  if (el.type === "div" && String(el.props.className ?? "").includes("ft-panel-h")
+    && /合参/.test(String(el.children ?? ""))) hepaiPanels++;
+  if (el.type === "div" && String(el.props.className ?? "").includes("ft-hepai-row")) hepaiRows++;
+  if (el.type === "span" && String(el.props.className ?? "").includes("ft-chip")) hepaiChips++;
+});
+assert.equal(hepaiPanels, 3, "合参应有三张术数卡片");
+assert.ok(hepaiRows >= 9, `合参关键标志/干支关系行应 ≥9（实际 ${hepaiRows}）`);
+assert.ok(hepaiChips >= 7, `合参流派 chips 应 ≥7（实际 ${hepaiChips}）`);
 
 // meta 缺失时回退不抛错
 for (const [name] of Object.entries(FIXTURES)) {

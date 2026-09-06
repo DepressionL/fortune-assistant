@@ -146,3 +146,32 @@ def test_report_smoke():
     c = qizheng(1990, 6, 15, 13, 30)
     text = format_chart(c)
     assert "七政四余" in text and "辰宫" in text and "化曜" in text
+
+# ---------- 黄经基准多口径（恒星黄道·现代岁差修正） ----------
+
+def test_longitude_schools_both_computed():
+    c = qizheng(1990, 6, 15, 13, 30)
+    keys = [s['key'] for s in c.longitude_schools]
+    assert keys == ['tropical', 'sidereal']
+    assert c.school == 'tropical'
+    sid = c.longitude_schools[1]
+    assert 23.0 < sid['ayanamsa'] < 24.5          # 1990 年前后拉希里 ayanamsa ≈ 23.7°
+    # 恒星黄道 = 回归黄道 − 岁差
+    for xing in ('日', '月', '土', '罗'):
+        trop = c.stars[xing]['lon']
+        sid_lon = (trop - sid['ayanamsa']) % 360.0
+        assert abs(sid['stars'][xing]['lon'] - sid_lon) < 0.01, xing
+    # 计都对宫保持
+    assert abs((sid['stars']['罗']['lon'] + 180) % 360 - sid['stars']['计']['lon']) < 0.01
+
+
+def test_sidereal_shift_changes_gong_su():
+    c = qizheng(1990, 6, 15, 13, 30)
+    sid = c.longitude_schools[1]
+    diff_gong = sum(1 for k in c.stars if c.stars[k]['gong'] != sid['stars'][k]['gong'])
+    assert diff_gong >= 7                       # ~24° 西移，多数曜的宫位改变
+    # 太阳：回归 辰宫（天秤）→ 恒星应在前一宫
+    assert c.stars['日']['su'] != sid['stars']['日']['su']   # 宿位随岁差西移
+    # 紫气行黄经同步减岁差
+    assert abs(sid['ziqi_rows'][0]['lon'] - (c.ziqi_rows[0]['lon'] - sid['ayanamsa']) % 360) < 0.01
+

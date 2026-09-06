@@ -33,7 +33,10 @@ SCHOOLS_CN = {"wangshuai": "旺衰", "tiaohou": "调候", "tongguan": "通关",
 #: 证据链工具中文显示名（出处路径保留原样，仅徽章名中文化）
 TOOLS_CN = {"bazi": "八字", "ziwei": "紫微", "liuyao": "六爻", "meihua": "梅花",
             "chenggu": "称骨", "xiaoliuren": "小六壬",
+            "liuren": "大六壬", "qimen": "奇门遁甲", "qizheng": "七政四余",
             "comprehensive": "综合分析", "context": "历法上下文"}
+#: 合参可选术数（默认全部聚合）
+HEPAI_TOOLS = ("liuren", "qimen", "qizheng")
 DEFAULT_WEIGHTS = {"bazi": 0.35, "ziwei": 0.25, "meihua": 0.12,
                    "xiaoliuren": 0.10, "liuyao": 0.10, "chenggu": 0.08}
 WUXING = ("木", "火", "土", "金", "水")
@@ -90,6 +93,7 @@ class ComprehensiveResult:
     conclusions: list[Conclusion]
     conflicts: list[str]
     notes: list[str] = field(default_factory=list)
+    hepai: list = field(default_factory=list)   # 多术数合参（六壬/奇门/七政，默认全部）
 
     def markdown(self) -> str:
         L = ["# 综合分析报告（无 LLM 聚合，确定性规则引擎）", ""]
@@ -153,6 +157,37 @@ class ComprehensiveResult:
             L.append("")
             L += [f"- {x}" for x in self.conflicts]
             L.append("")
+        if self.hepai:
+            L.append("## 多术数合参（大六壬 / 奇门遁甲 / 七政四余，盘面事实并列）")
+            L.append("")
+            for hp in self.hepai:
+                title = TOOLS_CN.get(hp["tool"], hp["tool"])
+                if not hp.get("ok", True):
+                    L.append(f"- **{title}**：{hp.get('note', '模块不可用')}")
+                    continue
+                L.append(f"### {title}")
+                L.append("")
+                for mk in hp.get("markers", []):
+                    L.append(f"- {mk['key']}：{mk['value']}"
+                             + (f"（{mk['source']}）" if mk.get("source") else ""))
+                if hp.get("schools"):
+                    L.append("- 流派对照：")
+                    for s in hp["schools"]:
+                        if s.get("items"):
+                            items = "；".join(
+                                f"{it['name']} → {it['value']}" for it in s["items"])
+                            L.append(f"  - {s['name']}：{items}"
+                                     + (f"（{s['note']}）" if s.get("note") else ""))
+                        else:
+                            L.append(f"  - {s['name']}：{s.get('value', '')}"
+                                     + (f"（{s.get('note', '')}）" if s.get("note") else ""))
+                if hp.get("ganzhi"):
+                    L.append("- 与四柱干支关系：" + "；".join(
+                        f"{g['fact']}（{g['basis']}）" for g in hp["ganzhi"]))
+                L.append("")
+            L.append("> 合参仅并列各术盘面事实与流派分歧，跨体系不做共识投票、不调和；"
+                     "各术原始输出可用对应工具单独查看。")
+            L.append("")
         L.append("> 未覆盖声明：本报告不输出任何生成式文本；未命中维度无结论。"
                  "各工具原始输出可用对应工具单独查看。")
         return "\n".join(L)
@@ -173,10 +208,134 @@ def _weights(config: FortuneConfig) -> dict:
     return w
 
 
+def _hepai_build(birth: BirthInfo, nb: NormalizedBirth,
+                 include: list[str]) -> list[dict]:
+    """多术数合参：六壬 / 奇门 / 七政 排盘事实 + 流派对照 + 关键标志 + 干支关系。
+    只列盘面事实与流派分歧，不做跨体系调和断言。"""
+    if birth.calendar == "solar":
+        y, m, d, h, mi = birth.year, birth.month, birth.day, birth.hour, birth.minute
+    else:
+        y, m, d, h, mi = nb.solar_ymdhms[:5]
+    ec = nb.eight_char
+    day_gz = ec.getDay()
+    out: list[dict] = []
+
+    if "liuren" in include:
+        try:
+            from ..liuren import qike_full
+            c = qike_full(y, m, d, h, mi)
+            out.append({
+                "tool": "liuren", "title": "大六壬", "ok": True,
+                "note": "用事时刻与归一化公历一致（含真太阳时校正口径）；起课九宗门依《六壬大全》卷一入手法。",
+                "markers": [
+                    {"key": "课体", "value": f"{c.ke_ti}（{c.ke_ti_note}）",
+                     "source": "fortune/liuren/__init__.py 九宗门"},
+                    {"key": "三传", "value": " → ".join(c.san_chuan),
+                     "source": "同上"},
+                    {"key": "贵人", "value": f"{c.gui_ren_zhi}（{'昼贵顺布' if c.gui_shun else '夜贵逆布'}）",
+                     "source": "《六壬大全》卷二贵人诀"},
+                    {"key": "月将", "value": f"{c.yue_jiang_name}（{c.yue_jiang_zhi}·{c.jie_qi}过宫）",
+                     "source": "太阳过宫中气通法"},
+                    {"key": "旬空", "value": "、".join(c.xun_kong),
+                     "source": "旬首遁干通法"},
+                ],
+                "schools": [
+                    {"name": "天乙贵人", "value": "通行「甲戊庚牛羊」",
+                     "note": "四库提要言《六壬大全》贵人「尚沿俗例」（曹震圭昼丑夜未），本仓从通行并如实标注"},
+                    {"name": "月将寅", "value": "小雪后功曹寅",
+                     "note": "底本作「大雪后……十月将」，大雪为十一月节，按过宫通法当小雪后，如实标注"},
+                ],
+                "ganzhi": [
+                    {"fact": f"日干支 {c.day_ganzhi}" + ("" if c.day_ganzhi == day_gz else "（与四柱日柱不同，占时口径）"),
+                     "basis": "占日干支"},
+                    {"fact": f"占时支 {c.hour_zhi}" + ("（同四柱时支）" if c.hour_zhi == ec.getTime()[-1] else "（与四柱时支不同，占时口径）"),
+                     "basis": "占时"},
+                ],
+            })
+        except Exception as e:  # 引擎缺失如实跳过
+            out.append({"tool": "liuren", "title": "大六壬", "ok": False,
+                        "note": f"模块不可用（{e}），合参跳过。"})
+
+    if "qimen" in include:
+        try:
+            from ..qimen import bu_ju
+            from ..qimen.duanyu import gong_name
+            c = bu_ju(y, m, d, h, mi)
+            fu_yin = "伏吟" if c.fu_yin else ("反吟" if c.fan_yin else "无")
+            out.append({
+                "tool": "qimen", "title": "奇门遁甲", "ok": True,
+                "note": "时家奇门；局数依《秘笈大全》起例歌，布盘依「奇门掌中金要诀」与《烟波钓叟歌》。",
+                "markers": [
+                    {"key": "局", "value": f"{c.dun} {c.ju} 局（{c.jie_qi}·{c.yuan}）",
+                     "source": "fortune/qimen/__init__.py"},
+                    {"key": "值符值使", "value": f"{c.zhi_fu_xing} / {c.zhi_shi_men}（旬首 {c.xun_shou}）",
+                     "source": "同上"},
+                    {"key": "伏吟反吟", "value": fu_yin, "source": "同上"},
+                ],
+                "schools": [
+                    {"name": "三元定局",
+                     "items": [{"name": s["name"], "value": f"{s['yuan']}·{s['ju']}局",
+                                "note": s.get("note", "")} for s in c.ju_schools],
+                     "note": "三派并列不调和"},
+                    {"name": "值使起法",
+                     "items": [{"name": s["name"],
+                                "value": f"值使落{gong_name(s['zhi_shi_gong'])}",
+                                "note": s.get("note", "")} for s in c.men_schools],
+                     "note": "两派门盘并列不调和"},
+                ],
+                "ganzhi": [
+                    {"fact": f"用事日干支 {c.day_ganzhi}、时干支 {c.hour_ganzhi}"
+                             + ("（时干支同四柱时柱）" if c.hour_ganzhi == ec.getTime() else ""),
+                     "basis": "用事时刻干支"},
+                ],
+            })
+        except Exception as e:
+            out.append({"tool": "qimen", "title": "奇门遁甲", "ok": False,
+                        "note": f"模块不可用（{e}），合参跳过。"})
+
+    if "qizheng" in include:
+        try:
+            from ..qizheng import qizheng as qz_build
+            c = qz_build(y, m, d, h, mi)
+            yao = next(iter(c.hua_yao), "") if c.hua_yao else "—"
+            out.append({
+                "tool": "qizheng", "title": "七政四余", "ok": True,
+                "note": "七政与罗计孛瑞士星历实测；二十八宿度《张果星宗》度表（立春太阳虚一度锚定）。",
+                "markers": [
+                    {"key": "命宫命度", "value": f"{c.ming_gong}宫 · 命度 {c.ming_du}",
+                     "source": "太阳加生时顺数至卯（《张果星宗》安命法）"},
+                    {"key": "化曜", "value": f"禄曜 {yao}",
+                     "source": "《星学大成》十干变曜"},
+                ],
+                "schools": [
+                    {"name": "黄道基准",
+                     "items": [{"name": s["name"],
+                                "value": f"ayanamsa {s['ayanamsa']:.2f}°",
+                                "note": s.get("note", "")} for s in c.longitude_schools],
+                     "note": "两口径并列不调和"},
+                    {"name": "紫气口径",
+                     "items": [{"name": r["name"], "value": f"{r['lon']}°",
+                                "note": r.get("note", "")} for r in c.ziqi_rows],
+                     "note": "虚拟星多口径并列"},
+                ],
+                "ganzhi": [
+                    {"fact": f"日干 {day_gz[0]} → 禄曜 {yao}（十干变曜）",
+                     "basis": "化曜与日干"},
+                ],
+            })
+        except Exception as e:
+            out.append({"tool": "qizheng", "title": "七政四余", "ok": False,
+                        "note": f"模块不可用（{e}），合参跳过。"})
+
+    return out
+
+
 def run(birth: BirthInfo, config: FortuneConfig, *,
         liuyao: dict | None = None,
-        anchor_year: int | None = None) -> ComprehensiveResult:
-    """执行综合聚合。liuyao: {"backs":[…],"coin_back":"yang","date":"YYYY-MM-DD"}。"""
+        anchor_year: int | None = None,
+        include: list[str] | None = None) -> ComprehensiveResult:
+    """执行综合聚合。liuyao: {"backs":[…],"coin_back":"yang","date":"YYYY-MM-DD"}；
+    include: 合参术数（默认全部：liuren/qimen/qizheng）。"""
     import datetime as _dt
 
     nb: NormalizedBirth = normalize(birth, config)
@@ -416,6 +575,13 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
                 f"{c.dim}维方向不一致：正面证据 {c.stance_p} 条 / 负面证据 {c.stance_m} 条"
                 f"（方向一致度 {c.agreement:.2f}，并列呈现，不调和）。")
 
+    # ---- 5) 多术数合参（六壬/奇门/七政，缺省全部；显式空列表 = 不聚合） ----
+    inc = list(include) if include is not None else list(HEPAI_TOOLS)
+    hepai = _hepai_build(birth, nb, inc)
+    for hp in hepai:
+        if not hp.get("ok", True):
+            notes.append(f"{TOOLS_CN.get(hp['tool'], hp['tool'])}模块不可用，合参跳过。")
+
     return ComprehensiveResult(
         context=ctx_mod_build_context(birth, config),
         matrix=matrix,
@@ -423,6 +589,7 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
         conclusions=concl,
         conflicts=conflicts,
         notes=notes,
+        hepai=hepai,
     )
 
 
@@ -433,3 +600,4 @@ def ctx_mod_build_context(birth: BirthInfo, config: FortuneConfig) -> dict:
 
 __all__ = ["run", "ComprehensiveResult", "Conclusion", "Evidence",
            "SCHOOLS", "DEFAULT_WEIGHTS"]
+

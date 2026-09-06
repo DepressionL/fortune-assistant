@@ -105,6 +105,9 @@ const ENUM = (d, values, required = false) =>
 const ARR_INT = (d, required = false) =>
   ({ type: "array", items: { type: "integer" }, description: d,
      ...(required ? { required: true } : {}) });
+const ARR_ENUM = (d, values, required = false) =>
+  ({ type: "array", items: { type: "string", enum: values }, description: d,
+     ...(required ? { required: true } : {}) });
 
 // 与 @deepseek-ai/dsh-tools 的 parameterSchemaSpecToJsonSchema 等价的最小转换：
 // 扁平参数规格 → 带根 type:"object" 的 JSON Schema。DSH 工具注册要求该形状，
@@ -399,7 +402,7 @@ export function apply(ctx, config = {}) {
       "奇门遁甲（时家奇门）排盘：节气定局（阴阳遁三元）→ 地盘三奇六仪 → 值符值使 → "
       + "天盘九星/八门/八神，附伏吟反吟判断。局数依《奇门遁甲秘笈大全》阳遁/阴遁九宫"
       + "起例歌，布盘依「奇门掌中金要诀」与《烟波钓叟歌》（逐字引文见报告）；"
-      + "多流派同时计算：三元定局两派（拆补法/茅山法，置闰与超神接气未实现已标注）、"
+      + "多流派同时计算：三元定局三派（拆补法/茅山法/置闰法·超神接气置闰）、"
       + "值使门起法两派（时支本位宫法/自旬首宫顺逆数地支法，均附出处注）；"
       + "只陈述排盘事实，不做吉凶总断。",
     parameters: toParametersSchema({
@@ -426,7 +429,9 @@ export function apply(ctx, config = {}) {
       "七政四余（果老星宗式）排盘：日月金木水火土与罗睺计都月孛的黄道宫宿躔度、"
       + "命宫命度（太阳加生时顺数至卯）、十干化曜、宫主。七政与罗计孛用瑞士星历实测，"
       + "二十八宿度用《张果星宗》通行度表（立春太阳虚一度锚定，古法口径）；"
-      + "紫气无可靠锚点不推算（如实标注）。只陈述排盘事实，不做吉凶总断。",
+      + "黄经基准双口径并算（回归黄道/恒星黄道·现代岁差修正）；"
+      + "紫气多口径并列计算并逐行标注出处（无可靠锚点，如实标注）。"
+      + "只陈述排盘事实，不做吉凶总断。",
     parameters: toParametersSchema({
       year: INT("公历年（出生）", true),
       month: INT("公历月（1-12）", true),
@@ -489,7 +494,9 @@ export function apply(ctx, config = {}) {
     name: "fortune_comprehensive",
     description:
       "综合分析（无 LLM 聚合）：确定性规则引擎——用神共识矩阵（流派×五行投票）、"
-      + "分维度结论（含证据链与共识度分档）、冲突清单（如实并列不调和）。"
+      + "分维度结论（含证据链与共识度分档）、冲突清单（如实并列不调和）、"
+      + "多术数合参报告（大六壬/奇门遁甲/七政四余：盘面事实+流派对照+干支关系，"
+      + "默认全部聚合，可用 include 裁剪）。"
       + "同输入同输出，零生成式文本；全部内容为传统命理文化参考。",
     parameters: toParametersSchema({
       ...BIRTH_SPEC,
@@ -499,6 +506,8 @@ export function apply(ctx, config = {}) {
       liuyaoTopic: ENUM("六爻占问主题（缺省综合）",
                         ["求财", "合伙", "事业", "官非", "婚恋", "健康", "考试", "文书", "出行", "综合"]),
       coinBack: ENUM("铜钱约定：yang(主流)|yin", ["yang", "yin"]),
+      include: ARR_ENUM("合参术数（缺省全部：liuren/qimen/qizheng）",
+                        ["liuren", "qimen", "qizheng"]),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_comprehensive") },
     timeoutMs: ZIWEI_TIMEOUT,
@@ -514,6 +523,9 @@ export function apply(ctx, config = {}) {
         if (args.liuyaoTopic) argv.push("--liuyao-topic", args.liuyaoTopic);
       }
       if (args.coinBack) argv.push("--coin-back", args.coinBack);
+      if (Array.isArray(args.include) && args.include.length > 0) {
+        argv.push("--include", args.include.join(","));
+      }
       return call(argv, ZIWEI_TIMEOUT);
     },
   });

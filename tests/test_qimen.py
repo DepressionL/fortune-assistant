@@ -5,8 +5,9 @@ import re
 import pytest
 
 from fortune.qimen import (GONG_XING, JU_TABLE, bu_ju, day_yuan,
-                           day_yuan_maoshan, governing_jieqi,
-                           men_pan_layout, zhi_shi_gong_xunshou)
+                           day_yuan_maoshan, day_yuan_zhirun, governing_jieqi,
+                           men_pan_layout, zhengshou_anchor,
+                           zhi_shi_gong_xunshou)
 from fortune.qimen.duanyu import format_chart
 from fortune.qimen.text import NOTES, QUOTES
 
@@ -132,7 +133,7 @@ def test_ju_schools_chaibu_maoshan():
     c = bu_ju(1988, 1, 11, 12, 0)
     assert c.jie_qi == "小寒"
     keys = [s["key"] for s in c.ju_schools]
-    assert keys == ["chaibu", "maoshan"]
+    assert keys == ["chaibu", "maoshan", "zhirun"]
     cb = c.ju_schools[0]
     ms = c.ju_schools[1]
     assert (cb["yuan"], cb["ju"]) == ("下元", 5)
@@ -151,6 +152,62 @@ def test_day_yuan_maoshan():
     assert day_yuan_maoshan(dt.datetime(1988, 1, 11, 12, 0), jq) == "中元"
 
 
+# ---------- 置闰/超神接气 ----------
+
+def test_zhirun_chaoshen_1988_01_07():
+    """置闰法·超神：1988-01-07（丙寅日），小寒 01-06；节前符头己未(01-05) → 超神。
+    元 = 己未下元（base_days=2）→ 下元 5 局；与拆补（丙寅中元 8 局）不同。"""
+    import datetime as dt
+    from fortune.qimen import governing_jieqi_dt
+    jq, jq_dt = governing_jieqi_dt(dt.datetime(1988, 1, 7, 12, 0))
+    assert jq == "小寒"
+    r = day_yuan_zhirun(dt.datetime(1988, 1, 7, 12, 0), jq, jq_dt)
+    assert r["relation"] == "超神" and r["yuan"] == "下元"
+
+
+def test_zhirun_jieqi_1988_01_10():
+    """置闰法·接气：1988-01-10（甲子日，小寒 01-06 后）→ 节后遇符为接气；
+    自节前符头己未(01-05)顺延 base_days=5 → 上元（金锚 2 局一致）。"""
+    import datetime as dt
+    from fortune.qimen import governing_jieqi_dt
+    jq, jq_dt = governing_jieqi_dt(dt.datetime(1988, 1, 10, 12, 0))
+    r = day_yuan_zhirun(dt.datetime(1988, 1, 10, 12, 0), jq, jq_dt)
+    assert r["relation"] == "接气" and r["yuan"] == "上元"
+
+
+def test_zhengshou_anchor_is_valid():
+    """正授锚点：找到的日期必须是甲/己日且恰逢交节日。"""
+    import datetime as dt
+    from lunar_python import Lunar, Solar
+    a = zhengshou_anchor(dt.datetime(2020, 6, 1, 12, 0))
+    assert a is not None
+    gz = Solar.fromYmd(a.year, a.month, a.day).getLunar().getDayInGanZhi()
+    assert gz[0] in "甲己"
+    # 该日应为某个节气交节日（逐表核验）
+    from fortune.qimen import JU_TABLE
+    hit = False
+    for yy in (a.year - 1, a.year, a.year + 1):
+        table = Lunar.fromYmdHms(yy, 6, 15, 12, 0, 0).getJieQiTable()
+        for name, t in table.items():
+            if name not in JU_TABLE or t is None:
+                continue
+            td = dt.datetime(t.getYear(), t.getMonth(), t.getDay(),
+                              t.getHour(), t.getMinute(), t.getSecond())
+            if td.date() == a.date():
+                hit = True
+    assert hit
+
+
+def test_zhirun_variant_in_buju():
+    """置闰法作为第三种三元派并入 bu_ju 的 ju_schools。"""
+    c = bu_ju(1988, 1, 7, 12, 0)
+    keys = [s["key"] for s in c.ju_schools]
+    assert keys == ["chaibu", "maoshan", "zhirun"]
+    zr = c.ju_schools[2]
+    assert zr["yuan"] == "下元" and zr["ju"] == 5
+    assert "超神" in zr["note"]
+
+
 def test_men_layout_helper():
     """men_pan_layout：阳遁值使死门落三宫 → 死三、惊四、开六、休七…"""
     mp = men_pan_layout(True, 2, "死门", 3)
@@ -165,7 +222,8 @@ def test_quotes_verbatim_in_sources():
     yb = _norm((ROOT / "research" / "fetched" / "wikisource_yanbodiao sou.txt")
                .read_text(encoding="utf-8"))
     mj_keys = {"布仪", "符使", "局数阳", "局数阴", "天禽", "值使例", "值使例注",
-               "值使数支", "九星", "八门", "八神阳", "八神阴", "八神替", "八神替2"}
+               "值使数支", "置闰诀", "置闰过九", "正授", "九星", "八门", "八神阳",
+               "八神阴", "八神替", "八神替2"}
     for k in mj_keys:
         assert _norm(QUOTES[k]) in mj, k
     for k in ("烟波布仪", "烟波符使"):

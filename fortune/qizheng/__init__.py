@@ -139,6 +139,57 @@ class QiZhengChart:
     hua_yao_star: dict[str, str] = field(default_factory=dict)  # 星 → 化曜名
     ziqi_sel: dict = field(default_factory=dict)           # 紫气选中口径（含宫宿）
     ziqi_rows: list = field(default_factory=list)          # 紫气多口径对照行
+    # ---- 黄经基准多口径（回归黄道 / 恒星黄道·现代岁差修正）----
+    school: str = "tropical"                  # 当前黄经基准 key
+    longitude_schools: list = field(default_factory=list)  # 各基准完整盘（含 stars/紫气/命宫）
+
+
+def ayanamsa_lahiri(jd: float) -> float:
+    """现代岁差修正 ayanamsa（拉希里恒星黄道口径，瑞士星历 SIDM_LAHIRI）。"""
+    swe.set_sid_mode(swe.SIDM_LAHIRI, 0, 0)
+    return float(swe.get_ayanamsa_ut(jd))
+
+
+def _chart_frame(jd: float, hour_zhi: str, day_gan: str,
+                 ziqi_preset: str, ziqi_custom, ayanamsa: float) -> dict:
+    """按给定 ayanamsa（0=回归黄道）排一套盘：七政四余黄经（宫+宿）、
+    紫气多口径、命宫命度。"""
+    stars: dict[str, dict] = {}
+    for name, pid in PLANETS:
+        if name == "计":
+            continue
+        pos, _ = swe.calc_ut(jd, pid)
+        lon = (pos[0] - ayanamsa) % 360.0
+        gong = _lon_to_gong(lon)
+        su, su_du = _lon_to_su(lon)
+        stars[name] = {"lon": round(lon, 4), "gong": GONG_CN[gong][0],
+                       "gong_cn": GONG_CN[gong][1], "su": su, "su_du": su_du}
+    # 计都 = 罗睺对宫（180°）
+    luo_lon = stars["罗"]["lon"]
+    ji_lon = (luo_lon + 180.0) % 360.0
+    gong = _lon_to_gong(ji_lon)
+    su, su_du = _lon_to_su(ji_lon)
+    stars["计"] = {"lon": round(ji_lon, 4), "gong": GONG_CN[gong][0],
+                   "gong_cn": GONG_CN[gong][1], "su": su, "su_du": su_du}
+    # 紫气多口径（黄经统一减岁差）
+    ziqi_sel, ziqi_rows = ziqi_positions(jd, preset_key=ziqi_preset,
+                                         custom=ziqi_custom)
+    rows_s = [{**r, "lon": round((r["lon"] - ayanamsa) % 360.0, 4)}
+              for r in ziqi_rows]
+    sel_s = dict(ziqi_sel)
+    sel_s["lon"] = round((sel_s["lon"] - ayanamsa) % 360.0, 4)
+    sel_s.update(_ziqi_gong_su(sel_s["lon"]))
+    stars["气"] = _ziqi_gong_su(sel_s["lon"])
+    stars["气"]["preset"] = sel_s["name"]
+    # 命宫命度：太阳加生时顺数至卯
+    sun_gong = _lon_to_gong(stars["日"]["lon"])
+    ming = _ming_gong(sun_gong, hour_zhi)
+    ming_gong = GONG_CN[ming][0]
+    ming_lon = (stars["日"]["lon"] + (ming - sun_gong) * 30.0) % 360.0
+    su, su_du = _lon_to_su(ming_lon)
+    ming_du = f"{su}{su_du:g}度"
+    return {"stars": stars, "ziqi_rows": rows_s, "ziqi_sel": sel_s,
+            "ming_gong": ming_gong, "ming_du": ming_du}
 
 
 def ziqi_positions(jd: float, preset_key: str = "guolao1900",
@@ -178,7 +229,8 @@ def _ziqi_gong_su(lon: float) -> dict:
 def qizheng(year: int, month: int, day: int, hour: int, minute: int = 0,
             day_gan: str | None = None, ziqi_preset: str = "guolao1900",
             ziqi_custom=None) -> QiZhengChart:
-    """七政四余排盘（公历输入，北京时间；时区硬编码 +8）。"""
+    """七政四余排盘（公历输入，北京时间；时区硬编码 +8）。
+    黄经基准两口径并算：回归黄道（默认）/ 恒星黄道（现代岁差修正·拉希里 ayanamsa）。"""
     from lunar_python import Solar
 
     c = QiZhengChart(year=year, month=month, day=day, hour=hour, minute=minute)
@@ -188,38 +240,30 @@ def qizheng(year: int, month: int, day: int, hour: int, minute: int = 0,
             .getLunar().getDayInGanZhi()[0]
     ut = hour + minute / 60.0 - 8.0
     jd = swe.julday(year, month, day, ut)
-    for name, pid in PLANETS:
-        if name == "计":
-            continue
-        pos, _ = swe.calc_ut(jd, pid)
-        lon = pos[0] % 360.0
-        gong = _lon_to_gong(lon)
-        su, su_du = _lon_to_su(lon)
-        c.stars[name] = {"lon": round(lon, 4), "gong": GONG_CN[gong][0],
-                         "gong_cn": GONG_CN[gong][1], "su": su, "su_du": su_du}
-    # 计都 = 罗睺对宫（180°）
-    luo_lon = c.stars["罗"]["lon"]
-    ji_lon = (luo_lon + 180.0) % 360.0
-    gong = _lon_to_gong(ji_lon)
-    su, su_du = _lon_to_su(ji_lon)
-    c.stars["计"] = {"lon": round(ji_lon, 4), "gong": GONG_CN[gong][0],
-                     "gong_cn": GONG_CN[gong][1], "su": su, "su_du": su_du}
-    # 紫气：多口径同时计算（虚拟星，速率×起算点各预设并列，可追溯）
-    ziqi_sel, ziqi_rows = ziqi_positions(jd, preset_key=ziqi_preset,
-                                         custom=ziqi_custom)
-    c.ziqi_sel = dict(ziqi_sel)
-    c.ziqi_sel.update(_ziqi_gong_su(ziqi_sel["lon"]))
-    c.ziqi_rows = ziqi_rows
-    c.stars["气"] = _ziqi_gong_su(ziqi_sel["lon"])
-    c.stars["气"]["preset"] = ziqi_sel["name"]
-    # 命宫命度：太阳加生时顺数至卯
-    sun_gong = _lon_to_gong(c.stars["日"]["lon"])
-    ming = _ming_gong(sun_gong, c.hour_zhi)
-    c.ming_gong = GONG_CN[ming][0]
-    ming_lon = (c.stars["日"]["lon"] + (ming - sun_gong) * 30.0) % 360.0
-    su, su_du = _lon_to_su(ming_lon)
-    c.ming_du = f"{su}{su_du:g}度"
-    # 化曜（十干变曜）
+    aya = ayanamsa_lahiri(jd)
+
+    tropical = _chart_frame(jd, c.hour_zhi, day_gan, ziqi_preset,
+                            ziqi_custom, 0.0)
+    sidereal = _chart_frame(jd, c.hour_zhi, day_gan, ziqi_preset,
+                            ziqi_custom, aya)
+    c.longitude_schools = [
+        {"key": "tropical", "name": "回归黄道", "ayanamsa": 0.0,
+         "note": "瑞士星历实测回归黄经；二十八宿界依「立春太阳在虚一度」古法锚定"
+                 "（虚宿起 314°）。",
+         **tropical},
+        {"key": "sidereal", "name": f"恒星黄道·岁差{aya:.2f}°", "ayanamsa": aya,
+         "note": "现代岁差修正（拉希里 ayanamsa）：各星黄经统一减去岁差，宫宿随之偏移"
+                 "（约西移 24°，逐刻缓增）。注意：古法「立春太阳在虚一度」锚定在"
+                 "恒星框架下不再成立——此口径如实展示岁差对宫宿的影响。",
+         **sidereal},
+    ]
+    c.school = "tropical"
+    c.stars = tropical["stars"]
+    c.ziqi_rows = tropical["ziqi_rows"]
+    c.ziqi_sel = tropical["ziqi_sel"]
+    c.ming_gong = tropical["ming_gong"]
+    c.ming_du = tropical["ming_du"]
+    # 化曜（十干变曜；与黄经基准无关）
     if day_gan:
         yao = HUA_YAO.get(day_gan, "")
         c.hua_yao = {yao: day_gan} if yao else {}
@@ -229,6 +273,6 @@ def qizheng(year: int, month: int, day: int, hour: int, minute: int = 0,
 
 
 __all__ = ["QiZhengChart", "qizheng", "ziqi_positions", "_lon_to_su",
-           "SU_DU", "SU_BOUNDS", "HUA_YAO", "GONG_ZHU", "GONG_CN",
-           "ZIQI_PRESETS"]
+           "ayanamsa_lahiri", "SU_DU", "SU_BOUNDS", "HUA_YAO", "GONG_ZHU",
+           "GONG_CN", "ZIQI_PRESETS"]
 
