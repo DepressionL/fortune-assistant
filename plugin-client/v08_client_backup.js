@@ -1349,7 +1349,20 @@
         ".fz-glow{filter:drop-shadow(0 0 6px rgba(255,213,79,.45))}",
         ".fz-glow-w{filter:drop-shadow(0 0 2.5px rgba(255,255,255,.32))}",
         ".fz-toggle.sm{font-size:10px;line-height:15px;padding:0 6px}",
-        ".fz-moon3d{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 35% 30%, #ffffffcc, #90a4ae 70%);box-shadow:0 0 6px rgba(0,0,0,.7)}",
+        ".fz-moon3d{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);overflow:hidden;box-shadow:0 0 6px rgba(0,0,0,.7)}",
+        ".fz-moonlit{position:absolute;left:0;top:0;width:100%;height:100%;border-radius:50%;background:#e2eaf2}",
+        ".fz-moonsh{position:absolute;left:0;top:0;width:100%;height:100%;border-radius:50%;background:#20272f}",
+        ".fz-spec{position:absolute;left:22%;top:15%;width:34%;height:20%;border-radius:50%;background:rgba(255,255,255,.72);filter:blur(1.2px);pointer-events:none}",
+        ".fz-atmo{position:absolute;inset:-4px;border-radius:50%;border:1px solid rgba(77,208,225,.55);box-shadow:0 0 9px rgba(77,208,225,.35);pointer-events:none}",
+        ".fz-satring{position:absolute;left:50%;top:50%;width:230%;height:64%;margin-left:-115%;margin-top:-32%;border-radius:50%;border:1.5px solid rgba(214,170,60,.55);transform:rotateX(72deg) rotateZ(-14deg);pointer-events:none}",
+        ".fz-stripe{position:absolute;left:6%;right:6%;height:9%;border-radius:40%;background:rgba(0,0,0,.16);pointer-events:none}",
+        ".fz-eclband{position:absolute;left:50%;top:50%;border-radius:50%;border:1px solid rgba(255,255,255,.07)}",
+        ".fz-ecl2{position:absolute;left:50%;top:50%;border-radius:50%;border:1px solid rgba(255,255,255,.12);transform:translate(-50%,-50%) rotateX(90deg)}",
+        ".fz-dg{font-size:8px;fill:var(--dsw-alias-label-tertiary)}",
+        ".fz-ovsvg,.fz-bl{transition:opacity .12s ease}",
+        ".fz-overlay.fz-dragbl .fz-bl{opacity:.15}",
+        ".fz-ovsvg.fz-dragbl{opacity:.25}",
+        ".fz-scene::after{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%, transparent 58%, rgba(0,0,0,.3) 100%)}",
         ".fz-grid{display:grid;grid-template-columns:repeat(3,minmax(92px,112px));gap:10px}",
         ".fz-cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:106px;border-radius:12px;padding:8px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);box-shadow:inset 0 1px 0 #ffffff0d;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}",
         ".fz-cell:hover{transform:translateY(-2px);border-color:var(--dsw-alias-border-l4)}",
@@ -1559,16 +1572,21 @@
       const FZ_ORBIT_R = { 水: 50, 金: 67, 地: 84, 火: 101, 木: 122, 土: 144 };  // 七政轨道（√压缩示意半径）
       const FZ_ECL_R = 156;  // 黄道圈半径（历法虚点所在）
       const FZ_C = 230;      // 星盘 SVG 中心
+      // ============ 七政四余视图 v1.1 ============
+      // ① 黄道盘（平面发光描边） ② 双视图：日心轨道图（视位黄经准线/月相/明度/黄道带）
+      //   / 地心黄道天球（黄道圈天体视位 + 观测点地球）；可俯仰缩放转台相机 + 屏幕空间标签
+      // ③ 中央信息条（悬停/锁定） ④ 播放器 + 紫气口径对照
       function QizhengView({ block }) {
         const d = metaData(block);
         if (!d || !d.stars) return h(ToolRow, { block, title: "七政四余 · 星盘" });
         const [hover, setHover] = useState(null);
+        const [pin, setPin] = useState(null);
         const [ziqiIdx, setZiqiIdx] = useState(null);
         const [mode, setMode] = useState(fzReduced() ? "actual" : "run");
+        const [view, setView] = useState("helio");
         const [yaw, setYaw] = useState(0);
         const [pitch, setPitch] = useState(60);
         const [zoom, setZoom] = useState(1);
-        const [info, setInfo] = useState(null);
         const tRef = useRef(0);
         const dragRef = useRef(null);
         const [, setTick] = useState(0);
@@ -1593,15 +1611,23 @@
         const mdu = /^(.{1,2})([\d.]+)/.exec(String(d.ming_du ?? ""));
         const mingSuIdx = mdu ? FZ_SU_NAMES.indexOf(mdu[1]) : -1;
         const mingLon = (mdu && mingSuIdx >= 0) ? (FZ_SU_BOUNDS[mingSuIdx] + parseFloat(mdu[2])) % 360 : null;
-        const enter = (xing) => {
-          setHover(xing);
+        // 信息（悬停 > 锁定）
+        const infoOf = (xing) => {
           const v = stars[xing];
           const lon = curLon(xing, xing === "气" ? ziqiLon : (v ? v.lon : 0));
           const [gz, gcn] = fzGongOf(lon);
           const [su, suD] = fzSuOf(lon);
-          setInfo({ xing, lon, gz, gcn, su, suD, hua: (d.hua_yao_star && d.hua_yao_star[xing]) || null });
+          return { xing, lon, gz, gcn, su, suD, hua: (d.hua_yao_star && d.hua_yao_star[xing]) || null };
         };
-        const leave = () => { setHover(null); setInfo(null); };
+        const infoObj = hover ? infoOf(hover) : (pin ? infoOf(pin) : null);
+        const enter = (xing) => setHover(xing);
+        const leave = () => setHover(null);
+        const clickBody = (xing) => { setHover(xing); setPin((p) => (p === xing ? null : xing)); };
+        const geoC = view === "geo";
+        const topdown = pitch > 75;
+        const dragging = dragRef.current !== null;
+        const demoDate = (d.year && d.month && d.day) ? new Date(Date.UTC(d.year, d.month - 1, d.day) + t * 86400000) : null;
+        const demoStr = demoDate ? ` → ${String(demoDate.getUTCMonth() + 1).padStart(2, "0")}-${String(demoDate.getUTCDate()).padStart(2, "0")}` : "";
         // 盘外读数分层（标签角位随星体平滑移动；层号按 t=0 实际黄经一次性分配 → 不抖不跳）
         const SLOT_R = [200, 216];
         const slotMeta = {};
@@ -1626,26 +1652,44 @@
             slotMeta[p.xing] = { layer: best };
           }
         }
-        // 3D 投影（与 CSS 变换 rotateY(yaw) rotateX(pitch) scale(zoom) 完全一致 —— 真转台式相机：
-        // 先绕 X 俯仰、再绕屏幕竖轴自旋 → 轨道椭圆随 yaw 转动，观感为真 3D。
-        // 注意：CSS scale(s) 只缩放 x/y（z 不变），因此 zoom 乘在进入旋转前的 x 上。
+        // 3D 投影（与 CSS 变换 rotateY(yaw) rotateX(-pitch) scale(zoom) 一致 —— 转台式相机：
+        // 近侧(z>0)投影向下 → 正俯视，近大远小正确；CSS scale(s) 只缩放 x/y（z 不变）。
         const P = 1050;
         const RAD = Math.PI / 180;
         const proj = (x, z) => {
           const cy = Math.cos(yaw * RAD), sy = Math.sin(yaw * RAD);
           const cp = Math.cos(pitch * RAD), sp = Math.sin(pitch * RAD);
-          const x1 = x * zoom;      // scale(s,s,1)：x 缩放、z 不变
+          const x1 = x * zoom;
           const z1 = z;
-          const y2 = z1 * sp;       // Rx(-pitch)：近侧(z>0) 投影向下 → 从上方俯视，近大远小正确
+          const y2 = z1 * sp;
           const z2 = -x1 * sy + z1 * cp * cy;
           const x2 = x1 * cy + z1 * cp * sy;
           const sc = P / (P - z2);
           return { sx: 190 + x2 * sc, sy: 165 + y2 * sc, d: z2 };
         };
-        const eclPos = (lon) => {
+        const orbitPos = (lon, r) => {
           const rad = (lon - 90) * Math.PI / 180;
-          return [FZ_ECL_R * Math.cos(rad), FZ_ECL_R * Math.sin(rad)];
+          return [r * Math.cos(rad), r * Math.sin(rad)];
         };
+        // 视位黄经准线（日心模式）：地球 → 行星 的视线延长至黄道圈交点 = 视黄经位置
+        const sunLon = curLon("日", stars["日"]?.lon ?? 0);
+        const moonLon = curLon("月", stars["月"]?.lon ?? 0);
+        const earthLon = (sunLon + 180) % 360;
+        const earthR = FZ_ORBIT_R["地"];
+        const sightLines = [];
+        if (!geoC) {
+          const [ex, ez] = orbitPos(earthLon, earthR);
+          for (const k of Object.keys(FZ_ORBIT_R)) {
+            if (k === "地") continue;
+            const [pxx, pzz] = orbitPos(curLon(k, stars[k]?.lon ?? 0), FZ_ORBIT_R[k]);
+            const dx = pxx - ex, dz = pzz - ez;
+            const A = dx * dx + dz * dz, B = 2 * (ex * dx + ez * dz), C = ex * ex + ez * ez - FZ_ECL_R * FZ_ECL_R;
+            const disc = B * B - 4 * A * C;
+            if (disc <= 0) continue;
+            const s = (-B + Math.sqrt(disc)) / (2 * A);
+            sightLines.push([ex, ez, pxx, pzz, ex + s * dx, ez + s * dz]);
+          }
+        }
         ensureFzStyle();
         // ---------- ① 黄道盘 ----------
         const leftPanel = h("div", { className: "fz-half" },
@@ -1686,7 +1730,7 @@
               const ghost = FZ_MODEL_GHOST.has(xing);
               const sl = slotMeta[xing];
               const [lx, ly] = sl ? fzPt(lon, SLOT_R[sl.layer] ?? 200, FZ_C, FZ_C) : [x, y];
-              return h("g", { key: xing, onMouseEnter: () => enter(xing), onMouseLeave: leave, onClick: () => enter(xing) },
+              return h("g", { key: xing, onMouseEnter: () => enter(xing), onMouseLeave: leave, onClick: () => clickBody(xing) },
                 h("line", { x1: x, y1: y, x2: lx, y2: ly, stroke: col + "44", strokeDasharray: "2 3" }),
                 inMing ? h("circle", { cx: x, cy: y, r: ghost ? 16 : (xing === "气" ? 16 : 13), fill: "none", stroke: "#ffd54f", strokeWidth: 2, className: "fz-pulse" }) : null,
                 ghost
@@ -1700,9 +1744,39 @@
               h("text", { x: FZ_C, y: FZ_C - 12, textAnchor: "middle", className: "fz-center-t1" }, "命宫"),
               h("text", { x: FZ_C, y: FZ_C + 8, textAnchor: "middle", className: "fz-center-t2" }, `${d.ming_gong ?? "—"}宫`),
               h("text", { x: FZ_C, y: FZ_C + 24, textAnchor: "middle", className: "fz-center-t3" }, `命度 ${d.ming_du ?? "—"}`))));
-        // ---------- ② 日心轨道图 ----------
+        // ---------- ② 轨道图 / 黄道天球 ----------
+        const bodyList = geoC
+          ? [
+              ["日", { r: FZ_ECL_R, size: 15, sun: true }],
+              ["月", { r: FZ_ECL_R, size: 7 }],
+              ...Object.keys(FZ_ORBIT_R).filter((k) => k !== "地").map((k) => [k, { r: FZ_ECL_R, size: (FZ_MODEL_SIZE[k] ?? 10) + 2 }]),
+            ]
+          : Object.keys(FZ_ORBIT_R).map((k) => [k, { r: FZ_ORBIT_R[k], size: (FZ_MODEL_SIZE[k] ?? 10) + 2 }]);
+        const bodyOf = (xing) => {
+          if (xing === "日") return sunLon;
+          if (xing === "月") return moonLon;
+          if (xing === "地") return earthLon;
+          return curLon(xing, stars[xing]?.lon ?? 0);
+        };
+        const isHi = (xing) => hover === xing || pin === xing;
+        const PHYS = { 日: "#ffb300", 月: "#90a4ae", 水: "#42a5f5", 金: "#e6c07b", 火: "#ef5350", 木: "#66bb6a", 土: "#b8860b", 地: "#4dd0e1" };
+        const ballDecor = (xing) => {
+          const k = [];
+          if (xing === "土") k.push(h("i", { key: "ring", className: "fz-satring" }));
+          if (xing === "木") {
+            k.push(h("i", { key: "s1", className: "fz-stripe", style: { top: "30%" } }));
+            k.push(h("i", { key: "s2", className: "fz-stripe", style: { top: "48%" } }));
+          }
+          k.push(h("i", { key: "sp", className: "fz-spec" }));
+          return k;
+        };
+        const earthDist = (xing) => {
+          const [ex, ez] = orbitPos(earthLon, earthR);
+          const [pxx, pzz] = orbitPos(bodyOf(xing), FZ_ORBIT_R[xing]);
+          return Math.sqrt((pxx - ex) * (pxx - ex) + (pzz - ez) * (pzz - ez));
+        };
         const rightPanel = h("div", { className: "fz-half" },
-          h("span", { className: "fz-half-title" }, "日心轨道图 · 拖拽转视角 / 滚轮缩放（0°=春分）"),
+          h("span", { className: "fz-half-title" }, `${geoC ? "地心黄道天球" : "日心轨道图"} · 拖拽转视角 / 滚轮缩放（0°=春分）`),
           h("div", { className: "fz-scene",
             onPointerDown: (e) => { dragRef.current = { sx: e.clientX, sy: e.clientY, yaw, pitch }; },
             onPointerMove: (e) => {
@@ -1716,122 +1790,154 @@
             onWheel: (e) => setZoom(Math.max(0.6, Math.min(1.7, zoom * (e.deltaY < 0 ? 1.08 : 0.93)))),
           },
             h("div", { className: "fz-space", style: { transform: `rotateY(${yaw}deg) rotateX(${-pitch}deg) scale(${zoom})` } },
-              h("div", { className: "fz-sun3d", style: { "--rx": `${pitch}deg`, "--ry": `${-yaw}deg` } }),
+              h("div", { className: "fz-eclband", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, transform: `translate(-50%,-50%) translate3d(0,13.6px,0) rotateX(90deg)` } }),
+              h("div", { className: "fz-eclband", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2, transform: `translate(-50%,-50%) translate3d(0,-13.6px,0) rotateX(90deg)` } }),
               h("div", { className: "fz-ecl", style: { width: FZ_ECL_R * 2, height: FZ_ECL_R * 2 } }),
-              Object.entries(FZ_ORBIT_R).map(([xing, r]) => h("div", {
+              h("div", { className: "fz-ecl2", style: { width: (FZ_ECL_R - 7) * 2, height: (FZ_ECL_R - 7) * 2 } }),
+              !geoC ? Object.entries(FZ_ORBIT_R).map(([xing, r]) => h("div", {
                 key: "o" + xing,
                 className: "fz-orbit3d",
                 style: { width: r * 2, height: r * 2, border: `1px solid ${(FZ_PLANET[xing] || "#ffffff")}55` },
-              })),
-              Object.keys(FZ_ORBIT_R).map((xing) => {
-                const r = FZ_ORBIT_R[xing];
-                const lon = curLon(xing, stars[xing]?.lon ?? 0);
-                const rad = (lon - 90) * Math.PI / 180;
-                const px = r * Math.cos(rad), pz = r * Math.sin(rad);
-                const col = FZ_PLANET[xing] || "#888";
-                const isHover = hover === xing;
-                const size = (FZ_MODEL_SIZE[xing] ?? 10) + 2;
-                if (xing === "地") {
-                  const mrad = (curLon("月", stars["月"]?.lon ?? 0) - 90) * Math.PI / 180;
-                  return h("div", {
-                    key: xing,
-                    className: "fz-planet3d" + (isHover ? " on" : ""),
-                    style: { width: size, height: size, transform: `translate(-50%,-50%) translate3d(${px}px,0px,${pz}px) rotateX(${pitch}deg) rotateY(${-yaw}deg)`, background: fzSphereBg(col) },
-                    onMouseEnter: () => enter("地"),
-                    onMouseLeave: leave,
-                    onClick: () => enter("地"),
-                  },
-                    h("div", { className: "fz-moonorbit", style: { width: 28, height: 28, border: "1px solid #ffffff33" } }),
-                    h("div", { className: "fz-moon3d", style: { transform: `translate(-50%,-50%) translate3d(${14 * Math.cos(mrad)}px,0px,${14 * Math.sin(mrad)}px)` } }));
-                }
+              })) : null,
+              !geoC ? h("div", { className: "fz-sun3d", style: { "--rx": `${pitch}deg`, "--ry": `${-yaw}deg` } }) : null,
+              bodyList.map(([xing, m]) => {
+                const [pxx, pzz] = orbitPos(bodyOf(xing), m.r);
+                const col = PHYS[xing] || FZ_PLANET[xing] || "#888";
+                const hi = isHi(xing);
+                const op = (!geoC && !m.sun && xing !== "月" && xing !== "地") ? Math.min(1, Math.max(0.42, 1.06 - earthDist(xing) / 230)) : 1;
                 return h("div", {
                   key: xing,
-                  className: "fz-planet3d" + (isHover ? " on" : ""),
-                  style: { width: size, height: size, transform: `translate(-50%,-50%) translate3d(${px}px,0px,${pz}px) rotateX(${pitch}deg) rotateY(${-yaw}deg)`, background: fzSphereBg(col) },
+                  className: "fz-planet3d" + (hi ? " on" : ""),
+                  style: { width: m.size, height: m.size, transform: `translate(-50%,-50%) translate3d(${pxx}px,0px,${pzz}px) rotateX(${pitch}deg) rotateY(${-yaw}deg)`, background: m.sun ? "radial-gradient(circle at 36% 30%, #fff8d8, #ffd54f 30%, #ff9800 75%, #ff6d00 100%)" : fzSphereBg(col), boxShadow: m.sun ? "0 0 22px 7px rgba(255,167,38,.45)" : undefined, opacity: op },
                   onMouseEnter: () => enter(xing),
                   onMouseLeave: leave,
-                  onClick: () => enter(xing),
-                });
+                  onClick: () => clickBody(xing),
+                },
+                  ballDecor(xing));
               }),
               FZ_GHOST_ORDER.map((xing) => {
-                const lon = curLon(xing, xing === "气" ? ziqiLon : (stars[xing]?.lon ?? 0));
-                const [px, pz] = eclPos(lon);
+                const [pxx, pzz] = orbitPos(bodyOf(xing), FZ_ECL_R);
                 return h("div", {
                   key: "h" + xing,
-                  className: "fz-ghost3d" + (hover === xing ? " on" : ""),
-                  style: { transform: `translate(-50%,-50%) translate3d(${px}px,0px,${pz}px) rotateX(${pitch}deg) rotateY(${-yaw}deg)`, background: FZ_PLANET[xing] },
+                  className: "fz-ghost3d" + (isHi(xing) ? " on" : ""),
+                  style: { transform: `translate(-50%,-50%) translate3d(${pxx}px,0px,${pzz}px) rotateX(${pitch}deg) rotateY(${-yaw}deg)`, background: FZ_PLANET[xing] },
                   onMouseEnter: () => enter(xing),
                   onMouseLeave: leave,
-                  onClick: () => enter(xing),
+                  onClick: () => clickBody(xing),
                 });
-              })),
-            h("svg", { className: "fz-ovsvg", viewBox: "0 0 380 330" },
+              }),
+              geoC ? h("div", { key: "obs", className: "fz-planet3d",
+                style: { width: 12, height: 12, transform: `translate(-50%,-50%) rotateX(${pitch}deg) rotateY(${-yaw}deg)`, background: fzSphereBg("#4dd0e1") } },
+                h("i", { className: "fz-atmo" })) : null,
+              !geoC ? (() => {
+                const [ex, ez] = orbitPos(earthLon, earthR);
+                const hi = isHi("地");
+                const mrad = (moonLon - 90) * Math.PI / 180;
+                const phase = ((moonLon - sunLon) % 360 + 360) % 360;
+                const dxm = 3.5 * Math.cos(phase * RAD);
+                return h("div", {
+                  key: "earth",
+                  className: "fz-planet3d" + (hi ? " on" : ""),
+                  style: { width: 17, height: 17, transform: `translate(-50%,-50%) translate3d(${ex}px,0px,${ez}px) rotateX(${pitch}deg) rotateY(${-yaw}deg)`, background: fzSphereBg("#4dd0e1") },
+                  onMouseEnter: () => enter("地"),
+                  onMouseLeave: leave,
+                  onClick: () => clickBody("地"),
+                },
+                  h("div", { className: "fz-moonorbit", style: { width: 30, height: 30, border: "1px solid #ffffff33" } }),
+                  h("div", { className: "fz-moon3d", style: { transform: `translate(-50%,-50%) translate3d(${15 * Math.cos(mrad)}px,0px,${15 * Math.sin(mrad)}px)` } },
+                    h("i", { className: "fz-moonlit" }),
+                    h("i", { className: "fz-moonsh", style: { transform: `translateX(${dxm}px)` } })),
+                  ballDecor("地"));
+              })() : null),
+            h("svg", { className: "fz-ovsvg" + (dragging ? " fz-dragbl" : ""), viewBox: "0 0 380 330" },
+              sightLines.map(([ex, ez, , , qx, qz], i) => {
+                const a = proj(ex, ez), b = proj(qx, qz);
+                return h("g", { key: "sl" + i },
+                  h("line", { x1: a.sx, y1: a.sy, x2: b.sx, y2: b.sy, stroke: "#ffffff14", strokeWidth: 1 }),
+                  h("circle", { cx: b.sx, cy: b.sy, r: 2, fill: "#ffffff55" }));
+              }),
+              FZ_SU_BOUNDS.map((b0, i) => {
+                const rad = (b0 - 90) * Math.PI / 180;
+                const [ox, oz] = orbitPos(b0, FZ_ECL_R);
+                const [ix, iz] = [(FZ_ECL_R - 6) * Math.cos(rad), (FZ_ECL_R - 6) * Math.sin(rad)];
+                const o = proj(ox, oz), i2 = proj(ix, iz);
+                return h("line", { key: "su" + i, x1: o.sx, y1: o.sy, x2: i2.sx, y2: i2.sy, stroke: "#ffffff14", strokeWidth: 0.8 });
+              }),
               Array.from({ length: 12 }, (_, i) => {
                 const a = i * 30;
                 const rad = (a - 90) * Math.PI / 180;
-                const [ox, oz] = eclPos(a);
+                const [ox, oz] = orbitPos(a, FZ_ECL_R);
                 const [ix, iz] = [(FZ_ECL_R - 10) * Math.cos(rad), (FZ_ECL_R - 10) * Math.sin(rad)];
                 const o = proj(ox, oz), i2 = proj(ix, iz);
                 return h("line", { key: "e" + i, x1: o.sx, y1: o.sy, x2: i2.sx, y2: i2.sy, stroke: i === 0 ? "#ffd54f88" : "#ffffff2c", strokeWidth: i === 0 ? 1.6 : 1 });
               }),
+              !topdown ? Array.from({ length: 6 }, (_, i) => {
+                const a = i * 60;
+                const [x, z] = orbitPos(a, FZ_ECL_R + 18);
+                const p = proj(x, z);
+                return h("text", { key: "dg" + i, x: p.sx, y: p.sy, textAnchor: "middle", className: "fz-dg" }, `${a}°`);
+              }) : null,
               (() => {
                 const pts = [];
                 for (let k = 0; k <= 12; k++) {
-                  const [x, z] = eclPos(mingA0 + (mingA1 - mingA0) * k / 12);
+                  const [x, z] = orbitPos(mingA0 + (mingA1 - mingA0) * k / 12, FZ_ECL_R);
                   const p = proj(x, z);
                   pts.push(`${p.sx.toFixed(1)},${p.sy.toFixed(1)}`);
                 }
                 return h("polyline", { points: pts.join(" "), fill: "none", stroke: "#ffd54f", strokeWidth: 2.4, opacity: 0.85, strokeLinecap: "round" });
               })(),
               mingLon != null ? (() => {
-                const [x, z] = eclPos(mingLon);
+                const [x, z] = orbitPos(mingLon, FZ_ECL_R);
                 const p = proj(x, z);
                 return h("circle", { cx: p.sx, cy: p.sy, r: 4, fill: "#ffd54f", className: "fz-pulse" });
               })() : null),
-            h("div", { className: "fz-overlay" },
-              Array.from({ length: 12 }, (_, i) => {
-                const [x, z] = eclPos(i * 30 + 15);
+            h("div", { className: "fz-overlay" + (dragging ? " fz-dragbl" : "") },
+              !topdown ? Array.from({ length: 12 }, (_, i) => {
+                const [x, z] = orbitPos(i * 30 + 15, FZ_ECL_R);
                 const p = proj(x, z);
                 return h("span", { key: "sn" + i, className: "fz-bl sml", style: { left: p.sx, top: p.sy, zIndex: 5 } }, FZ_SIGN[i]);
-              }),
-              Object.keys(FZ_ORBIT_R).map((xing) => {
-                const r = FZ_ORBIT_R[xing];
-                const lon = curLon(xing, stars[xing]?.lon ?? 0);
-                const rad = (lon - 90) * Math.PI / 180;
-                const p = proj(r * Math.cos(rad), r * Math.sin(rad));
-                const isHover = hover === xing;
+              }) : null,
+              bodyList.map(([xing, m]) => {
+                const [pxx, pzz] = orbitPos(bodyOf(xing), m.r);
+                const p = proj(pxx, pzz);
+                const hi = isHi(xing);
                 return h("span", {
                   key: "t" + xing,
-                  className: "fz-bl p" + (isHover ? " on" : ""),
+                  className: "fz-bl p" + (hi ? " on" : ""),
                   style: { left: p.sx, top: p.sy + (p.d > 0 ? -30 : -13), zIndex: 500 + Math.min(100, Math.round(p.d * 4)) },
                   onMouseEnter: () => enter(xing),
                   onMouseLeave: leave,
-                  onClick: () => enter(xing),
+                  onClick: () => clickBody(xing),
                 },
-                  h("i", { className: "fz-dot", style: { background: FZ_PLANET[xing] } }),
+                  h("i", { className: "fz-dot", style: { background: FZ_PLANET[xing] || "#fff" } }),
                   xingName(xing));
               }),
+              geoC ? h("span", { className: "fz-bl sml", style: { left: 190, top: 149, zIndex: 600, color: "#4dd0e1" } }, "观测点·地球") : null,
               FZ_GHOST_ORDER.map((xing) => {
-                const lon = curLon(xing, xing === "气" ? ziqiLon : (stars[xing]?.lon ?? 0));
-                const [x, z] = eclPos(lon);
+                const [x, z] = orbitPos(bodyOf(xing), FZ_ECL_R);
                 const p = proj(x, z);
-                const isHover = hover === xing;
+                const hi = isHi(xing);
                 return h("span", {
                   key: "g" + xing,
-                  className: "fz-bl p" + (isHover ? " on" : ""),
+                  className: "fz-bl p" + (hi ? " on" : ""),
                   style: { left: p.sx, top: p.sy - 24, zIndex: 500 + Math.min(100, Math.round(p.d * 4)) },
                   onMouseEnter: () => enter(xing),
                   onMouseLeave: leave,
-                  onClick: () => enter(xing),
+                  onClick: () => clickBody(xing),
                 }, `◆ ${xingName(xing)}`);
               }),
               (() => {
-                const [x, z] = eclPos(mingA0 + 15);
+                const [x, z] = orbitPos(mingA0 + 15, FZ_ECL_R);
                 const p = proj(x, z);
                 return h("span", { className: "fz-bl gold", style: { left: p.sx, top: p.sy - 26, zIndex: 600 } }, `命宫${d.ming_gong ?? ""}`);
               })()),
             h("span", { className: "fz-caminfo" }, `俯仰 ${Math.round(pitch)}° · 方位 ${Math.round(yaw)}°`),
             h("div", { className: "fz-cambtns" },
+              [["日心", "helio"], ["地心", "geo"]].map(([n, v]) => h("button", {
+                key: n, type: "button",
+                className: "fz-toggle sm" + (view === v ? " on" : ""),
+                onClick: () => setView(v),
+              }, n)),
               [["俯视", 85], ["示意", 60], ["侧视", 25]].map(([n, v]) => h("button", {
                 key: n, type: "button",
                 className: "fz-toggle sm" + (pitch === v ? " on" : ""),
@@ -1839,15 +1945,15 @@
               }, n)),
               h("button", { type: "button", className: "fz-toggle sm" + (yaw === 0 && pitch === 60 && zoom === 1 ? " on" : ""), onClick: () => { setYaw(0); setPitch(60); setZoom(1); } }, "复位"))));
         // ---------- ③ 中央信息条 ----------
-        const infoBar = h("div", { className: "fz-info" }, info == null
-          ? `命宫${d.ming_gong ?? "—"} · 命度 ${d.ming_du ?? "—"}${d.hua_yao && Object.keys(d.hua_yao).length ? " · 禄曜" + Object.keys(d.hua_yao)[0] : ""} · 悬停星体查看详情`
-          : `${xingName(info.xing)} · 黄经 ${info.lon.toFixed(1)}° · ${info.gz}宫${info.gcn ? "（" + info.gcn + "）" : ""} · ${info.su}宿${info.suD != null ? " " + info.suD + "°" : ""}${info.hua ? " · 化" + info.hua : ""}${info.xing === "气" ? "（当前口径 " + (rows[ziqiIdx ?? 0]?.name ?? "") + "）" : ""}`);
+        const infoBar = h("div", { className: "fz-info" }, infoObj == null
+          ? `命宫${d.ming_gong ?? "—"} · 命度 ${d.ming_du ?? "—"}${d.hua_yao && Object.keys(d.hua_yao).length ? " · 禄曜" + Object.keys(d.hua_yao)[0] : ""} · ${pin ? "已锁定「" + xingName(pin) + "」（再次点击取消）" : "悬停星体查看详情"}`
+          : `${xingName(infoObj.xing)} · 黄经 ${infoObj.lon.toFixed(1)}° · ${infoObj.gz}宫${infoObj.gcn ? "（" + infoObj.gcn + "）" : ""} · ${infoObj.su}宿${infoObj.suD != null ? " " + infoObj.suD + "°" : ""}${infoObj.hua ? " · 化" + infoObj.hua : ""}${infoObj.xing === "气" ? "（当前口径 " + (rows[ziqiIdx ?? 0]?.name ?? "") + "）" : ""}${pin === infoObj.xing ? " · 已锁定，再次点击取消" : ""}`);
         // ---------- ④ 底部控制器 ----------
         const controls = h("div", { className: "fz-controls" },
           h("div", { className: "fz-toggles" },
             h("button", { type: "button", className: "fz-toggle act" + (mode === "run" ? " on" : ""), onClick: () => setMode("run") }, "▶ 运转"),
             h("button", { type: "button", className: "fz-toggle act" + (mode === "actual" ? " on" : ""), onClick: () => { tRef.current = 0; setMode("actual"); } }, "⏺ 定格实际"),
-            h("span", { className: "fz-chip" }, `演示 ${Math.round(t)} 天`),
+            h("span", { className: "fz-chip" }, `演示 ${Math.round(t)} 天${demoStr}`),
             h("input", { type: "range", className: "fz-range", min: 0, max: 400, step: 1, value: Math.min(400, Math.round(t)), title: "演示进度", onChange: (e) => { tRef.current = +e.target.value; setTick((x) => x + 1); } })),
           rows.length > 1 ? h("div", { className: "fz-toggles" },
             h("span", { className: "fz-chip" }, "紫气口径："),
@@ -1866,7 +1972,7 @@
           h("div", { className: "fz-legend" },
             h("span", { className: "fz-chip", style: { borderColor: "#ffd54f" } }, "金色 = 入命宫 / 命宫弧"),
             h("span", { className: "fz-chip", style: { borderColor: "#ffffff44" } }, "◆ = 四余虚点（罗计孛气 · 在黄道圈上）"),
-            h("span", { className: "fz-chip" }, "悬停星体 · 两图联动")),
+            h("span", { className: "fz-chip" }, "悬停星体 · 点击锁定 · 两图联动")),
           infoBar,
           controls));
       }
