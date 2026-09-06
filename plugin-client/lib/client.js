@@ -1704,9 +1704,10 @@
         }
         ensureFzStyle();
         // ---------- ① 黄道盘 ----------
-        const leftPanel = h("div", { className: "fz-half" },
-          h("span", { className: "fz-half-title" }, "黄道盘 · 宿度与宫位（0°=春分）"),
-          h("svg", { viewBox: "0 0 460 460", className: "fz-svg" },
+        // 静态层（盘框/刻度/宫名/中心盒）只构建一次并缓存：运转时不再逐帧 diff/重绘 → 高刷下不卡顿
+        const discStatic = useRef(null);
+        if (!discStatic.current) {
+          discStatic.current = h("g", null,
             h("circle", { cx: FZ_C, cy: FZ_C, r: 224, fill: "#0d1216", stroke: "rgba(255,213,79,.25)", strokeWidth: 1.4, className: "fz-glow" }),
             h("g", { className: "fz-glow-w" },
               Array.from({ length: 28 }, (_, i) => {
@@ -1732,6 +1733,16 @@
                 h("text", { x: lx, y: ly + 8, textAnchor: "middle", className: "fz-gong-en" }, FZ_GONGEN[i]));
             }),
             h("circle", { cx: FZ_C, cy: FZ_C, r: 114, fill: "none", stroke: "#ffffff14", strokeDasharray: "3 5" }),
+            h("g", null,
+              h("circle", { cx: FZ_C, cy: FZ_C, r: 84, fill: "#0a0e12d9", stroke: "#ffffff22" }),
+              h("text", { x: FZ_C, y: FZ_C - 12, textAnchor: "middle", className: "fz-center-t1" }, "命宫"),
+              h("text", { x: FZ_C, y: FZ_C + 8, textAnchor: "middle", className: "fz-center-t2" }, `${d.ming_gong ?? "—"}宫`),
+              h("text", { x: FZ_C, y: FZ_C + 24, textAnchor: "middle", className: "fz-center-t3" }, `命度 ${d.ming_du ?? "—"}`)));
+        }
+        const leftPanel = h("div", { className: "fz-half" },
+          h("span", { className: "fz-half-title" }, "黄道盘 · 宿度与宫位（0°=春分）"),
+          h("svg", { viewBox: "0 0 460 460", className: "fz-svg" },
+            discStatic.current,
             starList.map(([xing, v]) => {
               const lon = curLon(xing, xing === "气" ? ziqiLon : v.lon);
               const [x, y] = fzPt(lon, 114, FZ_C, FZ_C);
@@ -1750,12 +1761,7 @@
                   : h("circle", { cx: x, cy: y, r: xing === "气" ? 12 : 9, fill: col, stroke: "#ffffff55", strokeWidth: isHover ? 2.4 : 1.4 }),
                 isHover ? h("circle", { cx: x, cy: y, r: ghost ? 16 : (xing === "气" ? 17 : 14), fill: "none", stroke: col, strokeWidth: 1.5, className: "fz-pulse" }) : null,
                 h("text", { x: lx, y: ly + 4, textAnchor: "middle", className: "fz-shen-label", fill: inMing ? "#ffd54f" : (isHover ? col : undefined) }, xingName(xing)));
-            }),
-            h("g", null,
-              h("circle", { cx: FZ_C, cy: FZ_C, r: 84, fill: "#0a0e12d9", stroke: "#ffffff22" }),
-              h("text", { x: FZ_C, y: FZ_C - 12, textAnchor: "middle", className: "fz-center-t1" }, "命宫"),
-              h("text", { x: FZ_C, y: FZ_C + 8, textAnchor: "middle", className: "fz-center-t2" }, `${d.ming_gong ?? "—"}宫`),
-              h("text", { x: FZ_C, y: FZ_C + 24, textAnchor: "middle", className: "fz-center-t3" }, `命度 ${d.ming_du ?? "—"}`))));
+            })));
         // ---------- ② 轨道图 / 黄道天球 ----------
         const bodyList = geoC
           ? [
@@ -1794,8 +1800,16 @@
             onPointerMove: (e) => {
               if (!dragRef.current) return;
               const g = dragRef.current;
-              setYaw((g.yaw + (e.clientX - g.sx) * 0.5 + 360) % 360);
-              setPitch(Math.max(15, Math.min(85, g.pitch + (e.clientY - g.sy) * 0.35)));
+              dragLive.current = { yaw: (g.yaw + (e.clientX - g.sx) * 0.5 + 360) % 360, pitch: Math.max(15, Math.min(85, g.pitch + (e.clientY - g.sy) * 0.35)) };
+              if (!dragRaf.current) {   // rAF 节流：高刷鼠标事件不逐事件重渲染
+                dragRaf.current = requestAnimationFrame(() => {
+                  dragRaf.current = 0;
+                  if (dragLive.current) {
+                    setYaw(dragLive.current.yaw);
+                    setPitch(dragLive.current.pitch);
+                  }
+                });
+              }
             },
             onPointerUp: () => { dragRef.current = null; },
             onPointerLeave: () => { dragRef.current = null; },
@@ -1916,7 +1930,7 @@
                 return h("span", {
                   key: "t" + xing,
                   className: "fz-bl p" + (hi ? " on" : ""),
-                  style: { left: p.sx, top: p.sy + (p.d > 0 ? -30 : -13), zIndex: 500 + Math.min(100, Math.round(p.d * 4)) },
+                  style: { left: p.sx, top: p.sy + (p.d > 0 ? -30 : -13), zIndex: (p.d > 0 ? 700 : 600) },
                   onMouseEnter: () => enter(xing),
                   onMouseLeave: leave,
                   onClick: () => clickBody(xing),
@@ -1932,7 +1946,7 @@
                 return h("span", {
                   key: "g" + xing,
                   className: "fz-bl p" + (hi ? " on" : ""),
-                  style: { left: p.sx, top: p.sy - 24, zIndex: 500 + Math.min(100, Math.round(p.d * 4)) },
+                  style: { left: p.sx, top: p.sy - 24, zIndex: (p.d > 0 ? 700 : 600) },
                   onMouseEnter: () => enter(xing),
                   onMouseLeave: leave,
                   onClick: () => clickBody(xing),
@@ -1943,7 +1957,7 @@
                 const p = proj(x, z);
                 return h("span", { className: "fz-bl gold", style: { left: p.sx, top: p.sy - 26, zIndex: 600 } }, `命宫${d.ming_gong ?? ""}`);
               })()),
-            h("span", { className: "fz-caminfo" }, `俯仰 ${Math.round(pitch)}° · 方位 ${Math.round(yaw)}°`),
+            h("span", { className: "fz-caminfo" }, `俯仰 ${Math.round(pitch)}° · 方位 ${Math.round(yaw)}°${fps ? ` · ${fps}Hz` : ""}`),
             h("div", { className: "fz-cambtns" },
               [["日心", "helio"], ["地心", "geo"]].map(([n, v]) => h("button", {
                 key: n, type: "button",
