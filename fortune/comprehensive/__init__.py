@@ -111,6 +111,7 @@ class ComprehensiveResult:
         L.append("")
         L.append("- **覆盖度** = 该维度提供证据的工具权重 ÷ 可参与工具权重（0-1，工具缺席时下降）；")
         L.append("- **方向一致度** = 带方向证据（正/负）中多数方向占比（0.5-1；纯事实维度无此指标）；")
+        L.append("- 证据链中每条证据带方向标记：`[+]` 正面/有利，`[−]` 负面/不利，`[○]` 中性事实；")
         L.append("- 各维度结论只并列「条件→证据→出处」，不做综合断言；正负方向并存时见冲突清单。")
         L.append("")
         L.append("## 用神共识矩阵（流派 × 五行投票）")
@@ -147,7 +148,7 @@ class ComprehensiveResult:
                 L.append("<details><summary>证据链（工具 → 字段 → 事实）</summary>")
                 L.append("")
                 L.append("\n".join(
-                    f"- **{TOOLS_CN.get(e.tool, e.tool)}**｜{_cn_field(e.field)}｜{e.fact}"
+                    f"- `[{e.stance}]` **{TOOLS_CN.get(e.tool, e.tool)}**｜{_cn_field(e.field)}｜{e.fact}"
                     + (f"｜出处：{e.source}" if e.source else "")
                     for e in c.evidence))
                 L.append("</details>")
@@ -159,6 +160,10 @@ class ComprehensiveResult:
             L.append("")
         if self.hepai:
             L.append("## 多术数合参（大六壬 / 奇门遁甲 / 七政四余，盘面事实并列）")
+            L.append("")
+            L.append("> 口径声明：六壬/奇门为占事盘（用事钟表时间，不做真太阳时校正）；"
+                     "以出生时刻代占时属命盘式非常规用法，合参仅供盘面参考。"
+                     "七政四余为命理盘（出生时刻，本工具按北京时间）。")
             L.append("")
             for hp in self.hepai:
                 title = TOOLS_CN.get(hp["tool"], hp["tool"])
@@ -187,6 +192,11 @@ class ComprehensiveResult:
                 L.append("")
             L.append("> 合参仅并列各术盘面事实与流派分歧，跨体系不做共识投票、不调和；"
                      "各术原始输出可用对应工具单独查看。")
+            L.append("")
+        if self.notes:
+            L.append("## 附注")
+            L.append("")
+            L += [f"- {n}" for n in self.notes]
             L.append("")
         L.append("> 未覆盖声明：本报告不输出任何生成式文本；未命中维度无结论。"
                  "各工具原始输出可用对应工具单独查看。")
@@ -226,7 +236,9 @@ def _hepai_build(birth: BirthInfo, nb: NormalizedBirth,
             c = qike_full(y, m, d, h, mi)
             out.append({
                 "tool": "liuren", "title": "大六壬", "ok": True,
-                "note": "用事时刻与归一化公历一致（含真太阳时校正口径）；起课九宗门依《六壬大全》卷一入手法。",
+                "note": "占事口径：起课用输入公历钟表时间（六壬占时不做真太阳时校正；"
+                        "以出生时刻代占时属命盘式非常规用法，仅供盘面参看）；"
+                        "起课九宗门依《六壬大全》卷一入手法。",
                 "markers": [
                     {"key": "课体", "value": f"{c.ke_ti}（{c.ke_ti_note}）",
                      "source": "fortune/liuren/__init__.py 九宗门"},
@@ -401,6 +413,9 @@ def run(birth: BirthInfo, config: FortuneConfig, *,
             month_zhi = liuyao.get("month_zhi", "子")
             day_ganzhi = liuyao.get("day_ganzhi", "甲子")
         liuyao_chart = from_coins(list(backs), month_zhi, day_ganzhi, coin_back)
+        if liuyao.get("random"):
+            notes.append("六爻为随机模拟掷币（--liuyao-random）："
+                         "世应/六亲方向仅供参考，实际占事请以真实掷币结果为准。")
 
     # ---- 3) 维度结论（证据链式 + 覆盖度/方向一致度，无自由文本） ----
     concl: list[Conclusion] = []

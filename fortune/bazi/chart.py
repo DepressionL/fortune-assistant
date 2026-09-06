@@ -69,6 +69,10 @@ class BaziChart:
     dayun: list[DayunStep]
     #: 五行统计（干支本气，不含藏干加权；加权版见 strength.py）
     wuxing_count: dict[str, int] = field(default_factory=dict)
+    #: 排盘时刻落夜子时（23:00–23:59）——两换日口径日柱不同（见 core/calendar.py）
+    night_zi: bool = False
+    #: 另一换日口径下的日柱（night_zi 时非空，供报告对照）
+    alt_day_ganzhi: str | None = None
 
     @property
     def day_master(self) -> str:
@@ -161,4 +165,6 @@ def build(nb: NormalizedBirth, gender: str, config: FortuneConfig,
         yun_start_age=raw[1].getStartAge(),
         dayun=dayun,
         wuxing_count=wuxing_count,
+        night_zi=nb.night_zi,
+        alt_day_ganzhi=nb.alt_day_ganzhi,
     )

@@ -124,9 +124,9 @@ def test_i1_misc_caliber():
     assert "钟表" in xlr_clock.caliber
 
     mh = meihua_mod.by_birth(b, nb, use_true_solar=True)
-    assert mh.caliber.startswith("时辰口径：真太阳时")
+    assert mh.caliber.startswith("日期/时辰口径：真太阳时")
     cg = chenggu_mod.calc_from_birth(b, nb)
-    assert cg.caliber.startswith("时辰口径：真太阳时")
+    assert cg.caliber.startswith("日期/时辰口径：真太阳时")
 
 
 def test_i1_context_check():
@@ -136,6 +136,37 @@ def test_i1_context_check():
     ctx_mod.check(ctx, year=1990, month=6, day=15, hour=13, minute=30)
     with pytest.raises(ValueError):
         ctx_mod.check(ctx, year=1991)          # 防错配
+
+
+def test_i1_night_zi_alt_day():
+    """夜子时换日敏感：主盘 sect 不被对照盘污染，alt 日柱为另一口径日柱。"""
+    b = BirthInfo(calendar="solar", year=2000, month=2, day=29, hour=23, minute=30,
+                  gender="男", longitude=120.0, is_dst=False)
+    cfg23 = FortuneConfig(use_true_solar_time=False, day_change_hour=23)
+    nb23 = normalize(b, cfg23)
+    assert nb23.night_zi is True
+    assert nb23.eight_char.getDay() == "戊午"
+    assert nb23.alt_day_ganzhi == "丁巳"
+    cfg0 = FortuneConfig(use_true_solar_time=False, day_change_hour=0)
+    nb0 = normalize(b, cfg0)
+    assert nb0.eight_char.getDay() == "丁巳"
+    assert nb0.alt_day_ganzhi == "戊午"
+
+
+def test_i1_misc_clock_date_recalc():
+    """钟表口径须连日期一起取钟表（不得沿用真太阳时校正后的农历日期）。"""
+    # 1991-01-11 00:05 北京时间（天津 117.2°）：校正 -18.8 分 → 1991-01-10 23:46。
+    # 校正后农历 11月25日；钟表口径农历 11月26日。
+    b = BirthInfo(calendar="solar", year=1991, month=1, day=11, hour=0, minute=5,
+                  gender="男", longitude=117.2, is_dst=False)
+    cfg = FortuneConfig(use_true_solar_time=True, day_change_hour=23)
+    nb = normalize(b, cfg)
+    xlr_ts = xlr_mod.calc_from_birth(b, nb, use_true_solar=True)
+    assert xlr_ts.lunar_day == 25
+    xlr_clock = xlr_mod.calc_from_birth(b, nb, use_true_solar=False)
+    assert xlr_clock.lunar_day == 26
+    mh_clock = meihua_mod.by_birth(b, nb, use_true_solar=False)
+    assert "26日" in mh_clock.method
 
 
 # ---------- I2 六爻占问聚焦与自动月建日辰 ----------

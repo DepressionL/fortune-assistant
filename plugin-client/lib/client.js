@@ -469,7 +469,7 @@
         const r = rows[Math.min(sel, rows.length - 1)];
         return h("div", { className: "ft-sec" },
           h("div", { className: "ft-sec-h" },
-            `大运流年速览（自 ${d.liunian_anchor ?? ""} 年起；确定性关系事实，不断吉凶）`),
+            `大运流年速览（自 ${d.liunian_start ?? d.liunian_anchor ?? ""} 年起；确定性关系事实，不断吉凶）`),
           h("div", { className: "ft-tl", role: "tablist" },
             rows.map((x, i) => h("button", {
               key: x.year, type: "button", role: "tab",
@@ -508,6 +508,14 @@
         if (c.solar_used) pills.push(h("span", { className: "ft-pill" }, `排盘 ${c.solar_used}`));
         if (c.steps && c.steps.some((s) => String(s).includes("真太阳时"))) {
           pills.push(h("span", { className: "ft-pill" }, "真太阳时"));
+        }
+        if (c.night_zi) {
+          pills.push(h("span", { className: "ft-pill ft-warn", title: "排盘时刻落夜子时（23:00–23:59），两换日口径日柱不同" },
+            `夜子时 · 本盘 ${(c.pillars ?? [])[2]?.gan_zhi ?? ""}`));
+          if (c.alt_day_ganzhi) {
+            pills.push(h("span", { className: "ft-pill" },
+              `另一口径日柱 ${c.alt_day_ganzhi}`));
+          }
         }
         if (c.dayun && c.dayun.length) {
           pills.push(h("span", { className: "ft-pill" },
@@ -762,6 +770,13 @@
                   key: `g${i}`, className: "ft-pair-reason",
                 }, p)))
             : null,
+          d.notes && d.notes.length
+            ? h("div", { className: "ft-sec" },
+                h("div", { className: "ft-sec-h" }, "口径与备注"),
+                d.notes.map((n2, i) => h("div", {
+                  key: `n${i}`, className: "ft-pair-reason",
+                }, n2)))
+            : null,
           h(ContentText, { block, max: 1500 })));
       }
 
@@ -836,7 +851,7 @@
                     ? `动爻（${selL.value === 9 ? "老阳○" : "老阴×"}），变卦中此爻阴阳翻转。`
                     : "静爻，不变。"}`))
             : null,
-          (d.topic && d.topic !== "综合" && d.topic_focus)
+          (d.topic && d.topic_focus)
             ? h("div", { className: "ft-sec" },
                 h("div", { className: "ft-sec-h" },
                   `占题：${d.topic}${d.question ? `「${d.question}」` : ""}`
@@ -1184,6 +1199,13 @@
                           className: `ft-ev-tool ${TOOL_PILL[e.tool] ?? ""}`,
                           title: e.tool ?? "",
                         }, TOOL_LABEL[e.tool] ?? e.tool ?? "—"),
+                        h("span", {
+                          className: `ft-ev-tool ${e.stance === "+" ? "ft-ok"
+                            : e.stance === "−" ? "ft-warn" : ""}`,
+                          title: e.stance === "+" ? "正面/有利证据"
+                            : e.stance === "−" ? "负面/不利证据" : "中性事实",
+                        }, e.stance === "+" ? "[+] 正面"
+                          : e.stance === "−" ? "[−] 负面" : "[○] 事实"),
                         h("span", { className: "ft-ev-field" },
                           (e.field ?? "").replace(
                             /wangshuai|tiaohou|tongguan|geju|bingyao/g,

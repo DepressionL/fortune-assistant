@@ -43,6 +43,8 @@ class BirthContext:
     time_zhi_clock: str             # 钟表时支（未校正）
     time_zhi_solar: str             # 校正后时支（未校正时同 clock）
     true_solar_shift_min: float | None
+    day_change_sensitive: bool = False      # 排盘时刻落夜子时：两换日口径日柱不同
+    alt_day_ganzhi: str | None = None       # 另一换日口径日柱（夜子时非空）
     steps: list[str] = field(default_factory=list)
 
     def asdict(self) -> dict:
@@ -73,6 +75,8 @@ def build(birth: BirthInfo, config: FortuneConfig) -> BirthContext:
         time_zhi_clock=_zhi_of_hour(birth.hour),
         time_zhi_solar=time_zhi_solar,
         true_solar_shift_min=nb.true_solar_shift_min,
+        day_change_sensitive=nb.night_zi,
+        alt_day_ganzhi=nb.alt_day_ganzhi,
         steps=list(nb.steps),
     )
 

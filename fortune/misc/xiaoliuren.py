@@ -138,18 +138,27 @@ def calc(lunar_month: int, lunar_day: int, hour_zhi: str) -> XiaoLiuRenResult:
 
 def calc_from_birth(birth: "BirthInfo", nb: "NormalizedBirth",
                     use_true_solar: bool = True) -> XiaoLiuRenResult:
-    """出生信息推算小六壬（农历月日 + 时支），并标注时辰口径。
+    """出生信息推算小六壬（农历月日 + 时支），并标注日期/时辰口径。
 
     注意：小六壬通行按钟表时支起数（本工具标准口径）；本入口提供
     use_true_solar 选项以便与八字/紫微口径对齐比较，两口径结论均如实输出。
     """
     if use_true_solar and nb.true_solar_shift_min is not None:
         hour = nb.solar_ymdhms[3]
-        caliber = f"时辰口径：真太阳时支（校正 {nb.true_solar_shift_min:+.1f} 分，与八字/紫微一致）"
+        ly, lm, ld = nb.lunar_year, abs(nb.lunar_month), nb.lunar_day
+        caliber = (f"日期/时辰口径：真太阳时校正（{nb.true_solar_shift_min:+.1f} 分）后，"
+                   f"取农历 {lm}月{ld}日、{hour} 时（校正可能使日期与钟表口径相差一日，"
+                   "与八字/紫微一致）")
     else:
         hour = birth.hour
-        caliber = "时辰口径：钟表时支（小六壬工具标准口径，未做真太阳时校正）"
+        # 钟表口径须连日期一起取钟表：按钟表公历日期重算农历（勿沿用校正后的 nb.lunar_day）
+        from ..config import FortuneConfig
+        from ..core.calendar import normalize
+        nb_clock = normalize(birth, FortuneConfig(use_true_solar_time=False))
+        lm, ld = abs(nb_clock.lunar_month), nb_clock.lunar_day
+        caliber = (f"日期/时辰口径：钟表时间，取农历 {lm}月{ld}日、{hour} 时"
+                   "（小六壬工具标准口径，未做真太阳时校正）")
     hour_zhi = "子丑寅卯辰巳午未申酉戌亥"[((hour + 1) // 2) % 12]
-    res = calc(abs(nb.lunar_month), nb.lunar_day, hour_zhi)
+    res = calc(lm, ld, hour_zhi)
     res.caliber = caliber
     return res

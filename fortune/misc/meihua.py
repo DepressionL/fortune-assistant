@@ -166,18 +166,28 @@ def by_time(lunar_year: int, lunar_month: int, lunar_day: int, hour: int) -> Mei
 
 def by_birth(birth: "BirthInfo", nb: "NormalizedBirth",
              use_true_solar: bool = True) -> MeiHuaResult:
-    """出生信息时间起卦（农历月日 + 时支），并标注时辰口径。
+    """出生信息时间起卦（农历月日 + 时支），并标注日期/时辰口径。
 
-    :param use_true_solar: True=取真太阳时校正后钟点（与八字/紫微口径一致，主流）；
-        False=取钟表钟点（梅花传统按钟表起卦）。两口径结果不同时如实标注。
+    :param use_true_solar: True=取真太阳时校正后的农历日期与钟点（与八字/紫微口径一致，
+        主流）；False=取钟表口径（梅花传统按钟表起卦：农历日期与时辰均按钟表时间）。
+        两口径结果不同时如实标注。
     """
     if use_true_solar and nb.true_solar_shift_min is not None:
         hour = nb.solar_ymdhms[3]
-        caliber = f"时辰口径：真太阳时（校正 {nb.true_solar_shift_min:+.1f} 分，与八字/紫微一致）"
+        ly, lm, ld = nb.lunar_year, abs(nb.lunar_month), nb.lunar_day
+        caliber = (f"日期/时辰口径：真太阳时（校正 {nb.true_solar_shift_min:+.1f} 分）后，"
+                   f"取农历 {lm}月{ld}日、{hour} 时（校正可能使日期与钟表口径相差一日，"
+                   "与八字/紫微一致）")
     else:
         hour = birth.hour
-        caliber = "时辰口径：钟表时支（未做真太阳时校正）"
-    res = by_time(nb.lunar_year, abs(nb.lunar_month), nb.lunar_day, hour)
+        # 钟表口径须连日期一起取钟表：按钟表公历日期重算农历（勿沿用校正后的 nb.lunar_day）
+        from ..config import FortuneConfig
+        from ..core.calendar import normalize
+        nb_clock = normalize(birth, FortuneConfig(use_true_solar_time=False))
+        ly, lm, ld = nb_clock.lunar_year, abs(nb_clock.lunar_month), nb_clock.lunar_day
+        caliber = (f"日期/时辰口径：钟表时间，取农历 {lm}月{ld}日、{hour} 时"
+                   "（未做真太阳时校正，梅花传统口径）")
+    res = by_time(ly, lm, ld, hour)
     res.caliber = caliber
     return res
 

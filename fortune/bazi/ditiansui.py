@@ -107,16 +107,20 @@ def hezhi(chart: BaziChart, st: StrengthResult,
                           f"（透干需≥{t['fu_cai_tou']:.1f}，门户藏财需≥{t['fu_cai_menhu']:.1f}）"
                           f"——财气未通门户"))
 
-    # 贵：官星有理会 —— 官杀透干或月支藏官，且官杀不弱
+    # 贵：官星有理会 —— 官杀透干或月支藏官，且官杀不弱（两条件须同时满足）
     guan_ok = bool(guan_tou) or any(p == "月柱" for p, _ in guan_cang)
-    if guan_ok and st.scores[guan_wx] >= t["gui_guan"]:
+    guan_score_ok = st.scores[guan_wx] >= t["gui_guan"]
+    c1 = "满足" if guan_ok else "不满足"
+    c2 = f"满足（{st.scores[guan_wx]:.2f} ≥ {t['gui_guan']:.1f}）" if guan_score_ok \
+        else f"不满足（{st.scores[guan_wx]:.2f} < {t['gui_guan']:.1f}）"
+    if guan_ok and guan_score_ok:
         hits.append(HZHit("贵", HZ_LINES[1], True,
-                          f"官杀{guan_wx}透干/月令得气（得分 {st.scores[guan_wx]:.2f}）"
-                          f"——官星有理会之象"))
+                          f"条件① 官杀透干或月支藏官：{c1}；条件② 官杀得分 {c2}"
+                          f"——两条件同时满足，官星有理会之象"))
     else:
         hits.append(HZHit("贵", HZ_LINES[1], False,
-                          f"官杀未透干/月令不得气（得分 {st.scores[guan_wx]:.2f}，"
-                          f"门槛 ≥{t['gui_guan']:.1f}）——官星未得理会"))
+                          f"条件① 官杀透干或月支藏官：{c1}；条件② 官杀得分 {c2}"
+                          f"——须两条件同时满足，故未命中（官星未得理会）"))
 
     # 贫：财神反不真 —— 财弱且被比劫相对劫夺（双重条件，避免身强盘全命中）
     if st.scores[cai_wx] < t["pin_cai"] and st.scores[bi_wx] >= st.scores[cai_wx] * t["pin_bi_ratio"]:

@@ -13,6 +13,10 @@ def format_chart(c: QimenChart, with_sources: bool = True) -> str:
     L: list[str] = []
     L.append("## 奇门遁甲（时家奇门排盘 · 多流派并算）")
     L.append("")
+    L.append("> 口径提示：本工具为**用事排盘**（用事时刻用钟表时间，不做真太阳时校正）；"
+             "以出生时刻代用事时刻属命盘式非常规用法，仅供盘面参看，"
+             "日干支为用事日口径，与八字日柱（真太阳时校正后）可能不同。")
+    L.append("")
     L.append(f"- 用事时刻：{c.year}-{c.month:02d}-{c.day:02d} "
              f"{c.hour:02d}:{c.minute:02d}，日干支 {c.day_ganzhi}，时干支 {c.hour_ganzhi}")
     L.append(f"- 节气：{c.jie_qi}（{c.dun} {c.ju} 局，{c.yuan}）")

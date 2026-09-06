@@ -31,6 +31,8 @@ class NormalizedBirth:
     eight_char: EightChar            # 八字对象（已按 config 设 sect）
     solar_ymdhms: tuple[int, int, int, int, int, int]  # 校正后 年月日时分秒
     true_solar_shift_min: float | None   # 真太阳时总偏移（分钟），未校正为 None
+    night_zi: bool = False           # 排盘时刻落夜子时（23:00–23:59）：两换日口径日柱不同
+    alt_day_ganzhi: str | None = None  # 另一换日口径下的日柱（夜子时非空，供对照）
     steps: list[str] = field(default_factory=list)
 
     # ---- 供其他术数模块取用的快查 ----
@@ -131,8 +133,25 @@ def normalize(birth: BirthInfo, config: FortuneConfig) -> NormalizedBirth:
     else:
         steps.append("日柱流派：0:00 换日（夜子时算当天，库默认，sect=2）")
 
+    # 6) 换日敏感窗口检测（夜子时 23:00–23:59）：
+    #    23:00 换日派日柱=次日，0:00 换日派日柱=当日，两口径日柱不同。
+    night_zi = h == 23
+    alt_day_ganzhi = None
+    if night_zi:
+        # 注意：Lunar.getEightChar() 返回同一缓存对象，必须用 fromLunar 建独立实例，
+        # 否则 setSect 会覆盖主盘 ec 的 sect（曾导致夜子时主盘日柱错误）。
+        alt = EightChar.fromLunar(lunar)
+        alt.setSect(2 if config.day_change_hour == 23 else 1)
+        alt_day_ganzhi = alt.getDay()
+        steps.append(
+            f"⚠ 排盘时刻落夜子时（23:00–23:59），日柱对换日口径敏感："
+            f"本盘（{config.day_change_hour}:00 换日）日柱 {ec.getDay()}；"
+            f"另一口径（{'0:00' if config.day_change_hour == 23 else '23:00'} 换日）日柱 {alt_day_ganzhi}。")
+
     return NormalizedBirth(
         solar=solar, lunar=lunar, eight_char=ec,
         solar_ymdhms=(y, m, d, h, mi, s),
-        true_solar_shift_min=shift, steps=steps,
+        true_solar_shift_min=shift,
+        night_zi=night_zi, alt_day_ganzhi=alt_day_ganzhi,
+        steps=steps,
     )

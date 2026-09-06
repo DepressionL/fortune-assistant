@@ -21,6 +21,7 @@ import json
 import pathlib
 import re
 import secrets
+import sys
 
 import typer
 
@@ -51,6 +52,20 @@ from .report import svg as svg_report
 
 app = typer.Typer(help="fortune-assistant —— 算命辅助工具（历法换算 + 排盘 + 规则引擎）",
                   no_args_is_help=True)
+
+
+def _setup_stdout_utf8() -> None:
+    """Windows 控制台默认 GBK，报告含 ⚠ 等 Unicode 符号会 UnicodeEncodeError。
+    模块加载时统一按 UTF-8 输出（重定向/宿主桥接拿到正确 UTF-8 字节流；
+    交互控制台显示由终端负责）。reconfigure 幂等，多次调用无害。"""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_setup_stdout_utf8()
 
 _VALID_SCHOOLS = ("wangshuai", "tiaohou", "tongguan", "geju", "bingyao")
 _GAN = "甲乙丙丁戊己庚辛壬癸"
@@ -143,8 +158,9 @@ def _bazi_meta(chart, config, schools: list[str] | None = None) -> dict:
     dayun_rows, liunian_diffs = ditiansui_mod.hezhi_suiyun(chart, st, th)
     hits = ditiansui_mod.hezhi(chart, st, th)
     anchor = config.liunian_anchor_year or _dt.date.today().year
+    start = anchor - max(config.liunian_back, 0)
     liunian_rows = [dataclasses.asdict(liunian_mod.compute(chart, y))
-                    for y in range(anchor, anchor + config.liunian_years)]
+                    for y in range(start, start + config.liunian_back + config.liunian_years)]
     return {
         "tool": "bazi",
         "chart": dataclasses.asdict(chart),
@@ -158,9 +174,10 @@ def _bazi_meta(chart, config, schools: list[str] | None = None) -> dict:
         "hezhi_pairs": ditiansui_mod.hezhi_pairs(hits),
         "hezhi_thresholds": {**ditiansui_mod.HEZHI_DEFAULTS, **th},
         "hezhi_dayun": dayun_rows,
-        "hezhi_liunian": liunian_diffs[:20],
+        "hezhi_liunian": liunian_diffs,
         "liunian": liunian_rows,
         "liunian_anchor": anchor,
+        "liunian_start": start,
     }
 
 
@@ -186,6 +203,14 @@ def bazi(
     years: int = typer.Option(10, "--years", help="大运流年速览年数（自锚年起；0=关闭）"),
     anchor_year: int | None = typer.Option(None, "--anchor-year",
                                            help="流年速览锚年（默认排盘时刻当前年）"),
+    liunian_back: int = typer.Option(0, "--liunian-back",
+                                     help="流年速览回溯年数（自锚年前 N 年起列，便于对照过去年份）"),
+    sections: str | None = typer.Option(None, "--sections",
+                                        help="只输出指定小节（逗号分隔：summary,bazi,dayun,wuxing,"
+                                             "relation,shensha,strength,yongshen,hezhi,suiyun,liunian），"
+                                             "如对比神煞基准用 --sections summary,shensha"),
+    hezhi_full: bool = typer.Option(False, "--hezhi-full",
+                                    help="何知章·大运流年变例显示全部（默认最多 10 条）"),
     hezhi_legacy: bool = typer.Option(False, "--hezhi-legacy",
                                       help="何知章输出旧版逐句列表 + 全量岁运表格式"),
     as_json: bool = typer.Option(False, "--json", help="输出 JSON"),
@@ -211,13 +236,25 @@ def bazi(
     config.shensha_base = shensha_base
     config.liunian_years = years
     config.liunian_anchor_year = anchor_year
+    config.liunian_back = liunian_back
+    config.hezhi_full_liunian = hezhi_full
     config.hezhi_legacy = hezhi_legacy
+    sec_list = None
+    if sections:
+        sec_list = [s.strip() for s in sections.split(",") if s.strip()]
+        valid_sec = {"summary", "bazi", "dayun", "wuxing", "relation", "shensha",
+                     "strength", "yongshen", "hezhi", "suiyun", "liunian"}
+        bad = [s for s in sec_list if s not in valid_sec]
+        if bad:
+            _fail(f"--sections 含未知小节 {bad}，可用：{sorted(valid_sec)}")
+    config.bazi_sections = sec_list
     chart = build_bazi(nb, gender, config)
     if as_json:
         typer.echo(json.dumps(_bazi_meta(chart, config, school_list),
                               ensure_ascii=False, indent=2))
         raise typer.Exit()
-    text = md_report.full_report(birth, config, chart, yongshen_schools=school_list)
+    text = md_report.full_report(birth, config, chart, yongshen_schools=school_list,
+                                 bazi_sections=sec_list)
     if out_md:
         with open(out_md, "w", encoding="utf-8") as f:
             f.write(text)
@@ -354,23 +391,45 @@ def chenggu(
 
 @app.command()
 def xiaoliuren(
-    month: int = typer.Option(..., "--month", help="农历月（闰月按当月，流派分歧见 README）"),
-    day: int = typer.Option(..., "--day", help="农历日"),
-    hour_zhi: str = typer.Option(..., "--hour-zhi", help="时支：子丑寅卯辰巳午未申酉戌亥"),
+    month: int = typer.Option(0, "--month", help="农历月（闰月按当月，流派分歧见 README）"),
+    day: int = typer.Option(0, "--day", help="农历日"),
+    hour_zhi: str = typer.Option("", "--hour-zhi", help="时支：子丑寅卯辰巳午未申酉戌亥"),
+    from_birth: str | None = typer.Option(None, "--from-birth",
+                                          help="出生信息派生（公历钟表时间，YYYY-MM-DD HH:MM）；"
+                                               "给出时忽略 --month/--day/--hour-zhi"),
+    lng: float = typer.Option(120.0, "--lng", help="出生地东经（--from-birth 真太阳时校正用）"),
+    no_true_solar: bool = typer.Option(False, "--no-true-solar",
+                                       help="--from-birth 时不校正真太阳时（钟表口径，通行）"),
     meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
 ):
     """小六壬（诸葛马前课）。"""
-    if not (1 <= month <= 12):
-        _fail(f"农历月 {month} 须在 1-12")
-    if not (1 <= day <= 30):
-        _fail(f"农历日 {day} 须在 1-30")
-    if hour_zhi not in ZHI:
-        _fail(f"时支 {hour_zhi!r} 非法（须为子丑寅卯辰巳午未申酉戌亥）")
-    res = xlr_mod.calc(month, day, hour_zhi)
+    if from_birth:
+        res = _misc_from_birth(xlr_mod.calc_from_birth, from_birth, lng, no_true_solar)
+    else:
+        if not (1 <= month <= 12):
+            _fail(f"农历月 {month} 须在 1-12")
+        if not (1 <= day <= 30):
+            _fail(f"农历日 {day} 须在 1-30")
+        if hour_zhi not in ZHI:
+            _fail(f"时支 {hour_zhi!r} 非法（须为子丑寅卯辰巳午未申酉戌亥）")
+        res = xlr_mod.calc(month, day, hour_zhi)
     typer.echo(str(res))
     _dump_meta(meta_json, {"tool": "xiaoliuren", **dataclasses.asdict(res),
                            "info": xlr_mod.PALACE_INFO[res.palace],
                            "finger": res.finger})
+
+
+def _misc_from_birth(fn, from_birth: str, lng: float, no_true_solar: bool):
+    """--from-birth 公共解析：公历钟表时间 → BirthInfo/NormalizedBirth → 派生结果。"""
+    try:
+        d_part, t_part = from_birth.split(" ")
+        y, m, d = (int(x) for x in d_part.split("-"))
+        hh, mm = (int(x) for x in t_part.split(":"))
+    except (ValueError, AttributeError):
+        _fail(f"--from-birth 须为 \"YYYY-MM-DD HH:MM\"，得到 {from_birth!r}")
+    _validate_birth(y, m, d, hh, mm, "男", lng)
+    birth, config, nb = _resolve(y, m, d, hh, mm, "男", lng, not no_true_solar, 23, False, 8.0)
+    return fn(birth, nb, use_true_solar=not no_true_solar)
 
 
 @app.command()
@@ -380,9 +439,15 @@ def meihua(
     lunar_month: int = typer.Option(0, "--lunar-month"),
     lunar_day: int = typer.Option(0, "--lunar-day"),
     hour: int = typer.Option(0, "--hour", help="时（0-23，用于时间起卦取时支）"),
+    from_birth: str | None = typer.Option(None, "--from-birth",
+                                          help="出生信息派生（公历钟表时间，YYYY-MM-DD HH:MM）；"
+                                               "给出时忽略农历参数"),
+    lng: float = typer.Option(120.0, "--lng", help="出生地东经（--from-birth 真太阳时校正用）"),
+    no_true_solar: bool = typer.Option(False, "--no-true-solar",
+                                       help="--from-birth 时不校正真太阳时（钟表口径，梅花传统）"),
     meta_json: str | None = typer.Option(None, "--meta-json", help="结构化结果落盘路径"),
 ):
-    """梅花易数起卦（数字起卦 / 农历时间起卦），附卦辞爻辞（通行本《周易》）。"""
+    """梅花易数起卦（数字起卦 / 农历时间起卦 / 出生信息派生），附卦辞爻辞（通行本《周易》）。"""
     if numbers:
         if len(numbers) not in (2, 3):
             _fail(f"数字起卦需 2 或 3 个数，得到 {len(numbers)} 个")
@@ -390,6 +455,8 @@ def meihua(
             _fail("数字起卦各数须为正整数")
         res = meihua_mod.by_numbers(numbers[0], numbers[1],
                                     numbers[2] if len(numbers) == 3 else None)
+    elif from_birth:
+        res = _misc_from_birth(meihua_mod.by_birth, from_birth, lng, no_true_solar)
     elif lunar_year and lunar_month and lunar_day:
         if not (1600 <= lunar_year <= 2200):
             _fail(f"农历年 {lunar_year} 超出支持范围（1600-2200）")
@@ -399,9 +466,17 @@ def meihua(
             _fail(f"农历日 {lunar_day} 须在 1-30")
         if not (0 <= hour <= 23):
             _fail(f"时 {hour} 须在 0-23")
+        # 农历日期真实性校验（lunar_python：不存在的日期会抛异常）
+        from lunar_python import Lunar
+        try:
+            Lunar.fromYmd(lunar_year, lunar_month, lunar_day)
+        except Exception:
+            _fail(f"非法农历日期：{lunar_year}年{lunar_month}月{lunar_day}日不存在"
+                  f"（注意月大月小；闰月起卦请按当月数）")
         res = meihua_mod.by_time(lunar_year, lunar_month, lunar_day, hour)
     else:
-        _fail("请提供数字（2-3 个）或农历年月日（--lunar-year/--lunar-month/--lunar-day）")
+        _fail("请提供数字（2-3 个）、农历年月日（--lunar-year/--lunar-month/--lunar-day）"
+              "或出生信息（--from-birth \"YYYY-MM-DD HH:MM\"）")
     typer.echo(str(res))
     typer.echo("")
     typer.echo("《梅花易数》体用总诀（题宋·邵雍撰，传系后人托名；通行排印本）："
@@ -670,6 +745,8 @@ def comprehensive(
     timezone: float = typer.Option(8.0, "--timezone"),
     liuyao_backs: str | None = typer.Option(None, "--liuyao-backs",
                                             help="六爻背数（0-3 × 6，自下而上，逗号分隔；缺省不占六爻）"),
+    liuyao_random: bool = typer.Option(False, "--liuyao-random",
+                                       help="随机模拟三枚铜钱掷六次（与 --liuyao-backs 二选一）"),
     liuyao_date: str = typer.Option("", "--liuyao-date", help="六爻起卦日 YYYY-MM-DD（默认今天）"),
     liuyao_topic: str = typer.Option("综合", "--liuyao-topic", help="六爻占问主题"),
     coin_back: str = typer.Option("yang", "--coin-back", help="铜钱约定 yang|yin"),
@@ -684,7 +761,14 @@ def comprehensive(
                                  true_solar, day_change_hour, is_dst, timezone)
     from .comprehensive import run as comp_run
     lyao = None
-    if liuyao_backs:
+    if liuyao_random:
+        rng = secrets.SystemRandom()
+        vals = [sum(rng.randrange(2) for _ in range(3)) for _ in range(6)]
+        typer.echo(f"六爻随机掷币（三枚铜钱 × 6 次，自下而上）：{','.join(map(str, vals))}")
+        lyao = {"backs": vals, "coin_back": coin_back,
+                "date": liuyao_date or _dt.date.today().strftime("%Y-%m-%d"),
+                "topic": liuyao_topic, "random": True}
+    elif liuyao_backs:
         try:
             vals = [int(x) for x in liuyao_backs.split(",")]
         except ValueError:
@@ -715,4 +799,4 @@ def main() -> None:  # pragma: no cover
 
 
 if __name__ == "__main__":  # pragma: no cover
-    app()
+    main()

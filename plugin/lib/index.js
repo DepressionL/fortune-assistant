@@ -190,6 +190,9 @@ export function apply(ctx, config = {}) {
                         ["day", "year"]),
       years: INT("大运流年速览年数（自锚年起；0=关闭，默认 10）"),
       anchorYear: INT("流年速览锚年（默认排盘时刻当前年；测试可固定以保持确定性）"),
+      liunianBack: INT("流年速览回溯年数（自锚年前 N 年起列，便于对照过去年份；默认 0）"),
+      sections: STRING("只输出指定小节（逗号分隔：summary,bazi,dayun,wuxing,relation,shensha,strength,yongshen,hezhi,suiyun,liunian），如对比神煞基准用 \"summary,shensha\""),
+      hezhiFull: BOOL("何知章·大运流年变例显示全部（默认 false=最多 10 条）"),
       hezhiLegacy: BOOL("何知章旧版逐句列表+全量岁运表格式（默认关=4 维成对呈现）"),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_bazi") },
@@ -204,6 +207,11 @@ export function apply(ctx, config = {}) {
       if (args.anchorYear !== undefined && args.anchorYear !== null) {
         argv.push("--anchor-year", String(args.anchorYear));
       }
+      if (args.liunianBack !== undefined && args.liunianBack !== null) {
+        argv.push("--liunian-back", String(args.liunianBack));
+      }
+      if (args.sections) argv.push("--sections", args.sections);
+      if (args.hezhiFull) argv.push("--hezhi-full");
       if (args.hezhiLegacy) argv.push("--hezhi-legacy");
       const primary = await call(argv, BAZI_TIMEOUT);
       // 口径预计算：真太阳时为主结果时，同步附「钟表时」对照（客户端口径分段器零计算切换）
@@ -274,14 +282,27 @@ export function apply(ctx, config = {}) {
       "小六壬（诸葛马前课）：农历月日时三数落宫，六宫断辞。通行本规则，"
       + "从 1 起数（大安起正月）。时辰按钟表时支（不做真太阳时校正）。",
     parameters: toParametersSchema({
-      month: INT("农历月（1-12；闰月按当月，流派分歧见 README）", true),
-      day: INT("农历日（1-30）", true),
+      month: INT("农历月（1-12；闰月按当月，流派分歧见 README）"),
+      day: INT("农历日（1-30）"),
       hourZhi: ENUM("时支：子丑寅卯辰巳午未申酉戌亥",
-                    "子丑寅卯辰巳午未申酉戌亥".split(""), true),
+                    "子丑寅卯辰巳午未申酉戌亥".split("")),
+      fromBirth: STRING("出生信息派生（公历钟表时间，YYYY-MM-DD HH:MM）；给出时忽略农历参数（自动换算农历并声明日期/时辰口径）"),
+      lng: { type: "number", description: "出生地东经（fromBirth 真太阳时校正用，默认 120）" },
+      noTrueSolar: BOOL("fromBirth 时不校正真太阳时（钟表口径，小六壬通行口径）"),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_xiaoliuren") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
+      if (args.fromBirth) {
+        const argv = ["xiaoliuren", "--from-birth", args.fromBirth];
+        if (args.lng !== undefined && args.lng !== null) argv.push("--lng", String(args.lng));
+        if (args.noTrueSolar) argv.push("--no-true-solar");
+        return call(argv, SHORT_TIMEOUT);
+      }
+      if (!args.month || !args.day || !args.hourZhi) {
+        return { ok: false, exitCode: -1, output: "",
+                 error: "请提供 month+day+hourZhi 或 fromBirth（出生信息派生）" };
+      }
       const argv = ["xiaoliuren", "--month", String(args.month),
                     "--day", String(args.day), "--hour-zhi", args.hourZhi];
       return call(argv, SHORT_TIMEOUT);
@@ -301,10 +322,19 @@ export function apply(ctx, config = {}) {
       lunarMonth: INT("时间起卦：农历月（1-12）"),
       lunarDay: INT("时间起卦：农历日（1-30）"),
       hour: INT("时间起卦：时（0-23，取时支）"),
+      fromBirth: STRING("出生信息派生（公历钟表时间，YYYY-MM-DD HH:MM）；给出时忽略其它起卦参数（自动换算农历并声明日期/时辰口径）"),
+      lng: { type: "number", description: "出生地东经（fromBirth 真太阳时校正用，默认 120）" },
+      noTrueSolar: BOOL("fromBirth 时不校正真太阳时（钟表口径，梅花传统）"),
     }),
     output: { ...OUTPUT_TEXT, presentationMeta: makePresentationMeta("fortune_meihua") },
     timeoutMs: SHORT_TIMEOUT,
     async execute(args) {
+      if (args.fromBirth) {
+        const argv = ["meihua", "--from-birth", args.fromBirth];
+        if (args.lng !== undefined && args.lng !== null) argv.push("--lng", String(args.lng));
+        if (args.noTrueSolar) argv.push("--no-true-solar");
+        return call(argv, SHORT_TIMEOUT);
+      }
       const argv = ["meihua"];
       if (Array.isArray(args.numbers) && args.numbers.length > 0) {
         argv.push(...args.numbers.map(String));
@@ -315,7 +345,7 @@ export function apply(ctx, config = {}) {
                   "--hour", String(args.hour || 0));
       } else {
         return { ok: false, exitCode: -1, output: "",
-                 error: "请提供 numbers（2-3 个整数）或农历时间起卦参数" };
+                 error: "请提供 numbers（2-3 个整数）、农历时间起卦参数或 fromBirth" };
       }
       return call(argv, SHORT_TIMEOUT);
     },
@@ -502,6 +532,7 @@ export function apply(ctx, config = {}) {
       ...BIRTH_SPEC,
       anchorYear: INT("近运锚年（默认排盘时刻当前年；测试可固定）"),
       liuyaoBacks: ARR_INT("六爻背数（0-3 × 6，自下而上；缺省不占六爻）"),
+      liuyaoRandom: BOOL("随机模拟三枚铜钱掷六次（与 liuyaoBacks 二选一；报告附注标注随机模拟）"),
       liuyaoDate: STRING("六爻起卦日 YYYY-MM-DD（默认今天）"),
       liuyaoTopic: ENUM("六爻占问主题（缺省综合）",
                         ["求财", "合伙", "事业", "官非", "婚恋", "健康", "考试", "文书", "出行", "综合"]),
@@ -517,7 +548,11 @@ export function apply(ctx, config = {}) {
       if (args.anchorYear !== undefined && args.anchorYear !== null) {
         argv.push("--anchor-year", String(args.anchorYear));
       }
-      if (Array.isArray(args.liuyaoBacks) && args.liuyaoBacks.length > 0) {
+      if (args.liuyaoRandom) {
+        argv.push("--liuyao-random");
+        if (args.liuyaoDate) argv.push("--liuyao-date", args.liuyaoDate);
+        if (args.liuyaoTopic) argv.push("--liuyao-topic", args.liuyaoTopic);
+      } else if (Array.isArray(args.liuyaoBacks) && args.liuyaoBacks.length > 0) {
         argv.push("--liuyao-backs", args.liuyaoBacks.join(","));
         if (args.liuyaoDate) argv.push("--liuyao-date", args.liuyaoDate);
         if (args.liuyaoTopic) argv.push("--liuyao-topic", args.liuyaoTopic);

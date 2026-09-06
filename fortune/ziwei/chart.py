@@ -215,6 +215,12 @@ def build(nb: NormalizedBirth, gender: str, config: FortuneConfig) -> ZiweiChart
         "星曜亮度按 iztro 标准（庙/旺/得/利/平/不/陷）；四化为生年干四化（含宫干自化见引擎原始输出）",
         "争议：庚年四化、闰月口径见 config.ziwei_geng_sihua / ziwei_leap_month 与 research/ziwei_tables.md §11",
     ]
+    if nb.night_zi and nb.alt_day_ganzhi:
+        notes.append(
+            "⚠ 换日口径提示：排盘时刻落夜子时（23:00–23:59）。本盘按 "
+            f"{config.day_change_hour}:00 换日口径取农历日期；若按另一口径，农历日期"
+            "相差一日，日系星曜（三台/八座/恩光/天贵等）将随之改变，"
+            "命宫/身宫与主星不受影响。")
 
     # 生年干支与四化：直接取自引擎盘面（与安星同一事实源，不另建表）
     yearly = getattr(getattr(r, "raw_dates", None), "chinese_date", None)
@@ -253,12 +259,17 @@ def build(nb: NormalizedBirth, gender: str, config: FortuneConfig) -> ZiweiChart
 def pattern_review(zc: "ZiweiChart") -> list[str]:
     """格局只读复核（展示性核对，不改变引擎判定）。
 
-    把格局字符串中的星曜与盘面实际落宫对照：标称宫与实际落宫不同时如实列出；
+    把格局字符串中的星曜与盘面实际落宫对照（主星 + 辅星 + 杂曜都参与索引，
+    禄存/天马等辅星在 minor 列表）：标称宫与实际落宫不同时如实列出；
     [破格] 时列出盘面化忌星所在，作为「提示性可能破格因」（非引擎结论）。
     """
     star_palace: dict[str, list[str]] = {}
     for p in zc.palaces:
         for name, _b, _m in p.major:
+            star_palace.setdefault(name, []).append(p.name)
+        for name in p.minor:
+            star_palace.setdefault(name, []).append(p.name)
+        for name in p.adjective:
             star_palace.setdefault(name, []).append(p.name)
     ji = [(n, p.name) for p in zc.palaces for n, _b, m in p.major if m == "忌"]
 
@@ -276,6 +287,10 @@ def pattern_review(zc: "ZiweiChart") -> list[str]:
             locs.append(f"{s}→{where}")
         note = f"「{pname}」" + (f"（标称宫：{palace}）" if palace else "")
         note += f"；星曜实际所在：{'；'.join(locs)}" if locs else ""
+        if stars and palace:
+            consistent = all(any(pn == palace for pn in star_palace.get(s, [])) for s in stars)
+            note += "；复核结论：星曜位置与标称宫一致" if consistent \
+                else "；复核结论：星曜位置与标称宫不完全一致（判定以 iztro 引擎为准，此处如实列出）"
         if broken:
             if ji:
                 note += "；破格提示：盘面化忌为" + "、".join(f"{n}（{p}）" for n, p in ji) \
@@ -308,5 +323,6 @@ def interpret_glance(zc: "ZiweiChart") -> list[str]:
     if sihua_pal:
         lines.append("  - 生年四化落宫：" + "；".join(sihua_pal))
     lines.append(f"  - 五行局 {zc.five_elements_class}；命主 {zc.ming_zhu}；身主 {zc.shen_zhu}"
-                 "（命主/身主名目释义待词条核验后补充）")
+                 "（命主=命宫地支所值星，主先天禀赋；身主=生年支所值星，主后天安身立命。"
+                 "取法见《紫微斗数全书》，名目释义为通行传注概括）")
     return lines

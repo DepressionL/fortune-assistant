@@ -106,6 +106,17 @@ class FortuneConfig:
     #: 流年速览锚年（None=排盘时刻当前年）。
     liunian_anchor_year: int | None = None
 
+    #: 流年速览回溯年数（自锚年前 N 年起列，便于对照过去年份；默认 0=不回溯）。
+    liunian_back: int = 0
+
+    #: 何知章·大运流年变例是否显示全部（默认 False=最多显示 10 条）。
+    hezhi_full_liunian: bool = False
+
+    #: 八字报告小节裁剪（None=全部；可选键：summary/bazi/dayun/wuxing/relation/
+    #: shensha/strength/yongshen/hezhi/suiyun/liunian）。供对比同一盘的不同基准时
+    #: 只看差异节（如 --sections shensha）。
+    bazi_sections: list[str] | None = None
+
     #: 紫微检索式解读速览（默认关；开启后追加「参考条目（检索式，非推断）」节）。
     ziwei_interpret: bool = False
 
@@ -138,6 +149,12 @@ class FortuneConfig:
         assert isinstance(self.hezhi_thresholds, dict), "hezhi_thresholds 须为字典"
         assert isinstance(self.comprehensive_weights, dict), "comprehensive_weights 须为字典"
         assert self.liunian_years >= 0, "liunian_years 须 ≥0"
+        assert self.liunian_back >= 0, "liunian_back 须 ≥0"
+        if self.bazi_sections is not None:
+            valid_sec = {"summary", "bazi", "dayun", "wuxing", "relation", "shensha",
+                         "strength", "yongshen", "hezhi", "suiyun", "liunian"}
+            assert set(self.bazi_sections) <= valid_sec, \
+                f"bazi_sections 只能为 {sorted(valid_sec)} 的子集"
         assert self.liunian_anchor_year is None or 1600 <= self.liunian_anchor_year <= 2200, \
             "liunian_anchor_year 须在 1600-2200 或为 None"
         assert self.chenggu_gender == "男", \

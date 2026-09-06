@@ -180,8 +180,9 @@ def calc_from_birth(birth: "BirthInfo", nb: "NormalizedBirth") -> ChengGuResult:
     """出生信息计算称骨（农历正月初一换年，时辰按校正后钟点），并标注口径。"""
     res = calc(nb.lunar_year_ganzhi, abs(nb.lunar_month), nb.lunar_day, nb.time_zhi)
     if nb.true_solar_shift_min is not None:
-        res.caliber = (f"时辰口径：真太阳时支（校正 {nb.true_solar_shift_min:+.1f} 分，"
-                       "与八字/紫微一致）")
+        res.caliber = (f"日期/时辰口径：真太阳时校正（{nb.true_solar_shift_min:+.1f} 分）后，"
+                       f"取农历 {abs(nb.lunar_month)}月{nb.lunar_day}日、{nb.time_zhi}时"
+                       "（校正可能使日期与钟表口径相差一日，与八字/紫微一致）")
     else:
-        res.caliber = "时辰口径：钟表时支（未做真太阳时校正）"
+        res.caliber = "日期/时辰口径：钟表时间（未做真太阳时校正）"
     return res

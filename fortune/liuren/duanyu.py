@@ -20,6 +20,10 @@ def format_chart(c: LiuRenChart, with_sources: bool = True) -> str:
     L: list[str] = []
     L.append("## 大六壬（起课排盘）")
     L.append("")
+    L.append("> 口径提示：本工具为**占事起课**（占时用钟表时间，不做真太阳时校正）；"
+             "以出生时刻代占时属命盘式非常规用法，仅供盘面参看，"
+             "日干支为占日口径，与八字日柱（真太阳时校正后）可能不同。")
+    L.append("")
     L.append(f"- 占时：{c.year}-{c.month:02d}-{c.day:02d} {c.hour:02d}:{c.minute:02d}，"
              f"日干支 {c.day_ganzhi}，时支 {c.hour_zhi}")
     L.append(f"- 月将：{c.yue_jiang_name}{c.yue_jiang_zhi}（{c.jie_qi}后日躔，"
