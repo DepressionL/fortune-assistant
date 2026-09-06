@@ -11,13 +11,25 @@ GONG_MING = {1: "坎一", 2: "坤二", 3: "震三", 4: "巽四", 5: "中五",
 
 def format_chart(c: QimenChart, with_sources: bool = True) -> str:
     L: list[str] = []
-    L.append("## 奇门遁甲（时家奇门排盘）")
+    L.append("## 奇门遁甲（时家奇门排盘 · 多流派并算）")
     L.append("")
     L.append(f"- 用事时刻：{c.year}-{c.month:02d}-{c.day:02d} "
              f"{c.hour:02d}:{c.minute:02d}，日干支 {c.day_ganzhi}，时干支 {c.hour_ganzhi}")
     L.append(f"- 节气：{c.jie_qi}（{c.dun} {c.ju} 局，{c.yuan}）")
     L.append(f"- 值符：{c.zhi_fu_xing}（旬首 {c.xun_shou} 遁干落{gong_name(c.zhi_fu_gong)}）；"
              f"值使：{c.zhi_shi_men}")
+    L.append("")
+
+    # 三元派并算
+    if c.ju_schools:
+        rows = "；".join(f"{s['name']}（{s['yuan']}，{s['ju']} 局）" for s in c.ju_schools)
+        L.append(f"- 三元定局两派并算：{rows}。")
+    # 门法两派并算
+    if c.men_schools:
+        parts = []
+        for s in c.men_schools:
+            parts.append(f"{s['name']} → 值使落{gong_name(s['zhi_shi_gong'])}")
+        L.append("- 值使门起法两派并算：" + "；".join(parts) + "。")
     L.append("")
 
     L.append("| 宫 | 地盘 | 天盘星 | 八门 | 八神 |")
@@ -30,6 +42,11 @@ def format_chart(c: QimenChart, with_sources: bool = True) -> str:
         ji = "（中五寄坤二）" if g == 5 else ""
         L.append(f"| {gong_name(g)}{ji} | {di} | {tian} | {men} | {shen} |")
     L.append("")
+    if c.men_pan_alt and c.men_pan_alt != c.men_pan:
+        L.append("> 门法②「自旬首宫顺逆数地支」八门盘："
+                 + "、".join(f"{gong_name(g)} {m}" for g, m in c.men_pan_alt.items()
+                             if g != 5) + "。")
+        L.append("")
 
     flags = []
     if c.fu_yin:

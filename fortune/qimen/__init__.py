@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 
 from lunar_python import Lunar
 
+#: 十二地支序
+ZHI12 = "子丑寅卯辰巳午未申酉戌亥"
 #: 九宫序（含中五）
 GONG_XU = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 #: 八门排布宫序（门不入中五）
@@ -62,12 +64,18 @@ JU_TABLE = {
 }
 
 NOTES = {
-    "三元": "三元按日干支符头（甲己+子午卯酉=上元、寅申巳亥=中元、辰戌丑未=下元）"
-            "的拆补简化法；置闰、超神接气未实现，如实标注。",
+    "三元": "三元定局两派并算：①拆补法（日干支符头：甲己+子午卯酉=上元、寅申巳亥=中元、"
+            "辰戌丑未=下元）；②茅山法（自交节日起每五日一元：0-4 日上元、5-9 日中元、"
+            "10-14 日下元）。置闰、超神接气未实现，如实标注。",
     "中宫": "中五宫寄坤二宫（天禽寄坤、值使落中宫取死门），《秘笈大全》"
             "「惟天禽则无定位，寄西南而属中宫」。",
-    "值使": "值使门加时支宫（地支所在九宫），其余门按门序顺布；与《秘笈大全》"
-            "「阳遁二局甲子日乙丑时，休门飞到坤二宫」互证。",
+    "值使": "值使门起法两派并算：①「时支本位宫」法——值使门加时支所在九宫方位"
+            "（子坎一、丑寅艮八、卯震三、辰巳巽四、午离九、未申坤二、酉兑七、戌亥乾六），"
+            "余门按门序顺布，与《秘笈大全》「休门飞到坤二宫即住，便为值使门也」互证；"
+            "②「自旬首宫顺逆数地支」法——自旬首（值符）宫起旬首支，阳遁顺、阴遁逆，"
+            "数至时支，所落之宫即值使落宫（六甲时门归本宫），《秘笈大全》"
+            "「看某局上起子至某甲符头……又数至某时，即为门也」、《烟波钓叟歌》"
+            "「值使顺逆遁宫去」即此口径。",
     "八神": "阳遁值符螣蛇太阴六合勾陈朱雀九地九天顺布；阴遁以白虎玄武替勾陈朱雀、逆布"
             "（《秘笈大全》「阳遁朱雀即阴遁元武」「阳遁勾陈，阴遁白虎」）。",
 }
@@ -78,8 +86,8 @@ def _solar_dt(solar):
                         solar.getHour(), solar.getMinute(), solar.getSecond())
 
 
-def governing_jieqi(dt: "_dt.datetime") -> str:
-    """最近过去的节气（二十四节气全量，含中气）名。"""
+def governing_jieqi_dt(dt: "_dt.datetime") -> tuple[str, "_dt.datetime"]:
+    """最近过去的节气（二十四节气全量，含中气）：返回 (名, 交节时刻)。"""
     y = dt.year
     seen: set = set()
     cands = []
@@ -94,8 +102,14 @@ def governing_jieqi(dt: "_dt.datetime") -> str:
                 cands.append((d, k))
     past = [c for c in cands if c[0] <= dt]
     if not past:
-        return "冬至"
-    return max(past, key=lambda c: c[0])[1]
+        return "冬至", dt
+    jq_dt, name = max(past, key=lambda c: c[0])
+    return name, jq_dt
+
+
+def governing_jieqi(dt: "_dt.datetime") -> str:
+    """最近过去的节气名。"""
+    return governing_jieqi_dt(dt)[0]
 
 
 def day_yuan(day_ganzhi: str) -> str:
@@ -107,6 +121,41 @@ def day_yuan(day_ganzhi: str) -> str:
     if zhi in "寅申巳亥":
         return "中元"
     return "下元"
+
+
+def day_yuan_maoshan(dt: "_dt.datetime", jq_dt: "_dt.datetime") -> str:
+    """茅山法三元：自交节日起每五日一元（0-4 日上元、5-9 日中元、10-14 日下元）。"""
+    days = max(0, (dt - jq_dt).days)
+    return ("上元", "中元", "下元")[min(days // 5, 2)]
+
+
+def men_pan_layout(yang: bool, zhi_fu_gong: int, zhi_shi_men: str,
+                   zhi_shi_gong: int) -> dict[int, str]:
+    """八门盘：值使门落 zhi_shi_gong，余门按门序顺布（宫序跳中五，阳顺阴逆）。"""
+    men_order = MEN_GONG_XU if yang else list(reversed(MEN_GONG_XU))
+    men_anchor = MEN_XU.index(zhi_shi_men)
+    try:
+        pos = men_order.index(zhi_shi_gong)
+    except ValueError:
+        pos = 0
+    mp: dict[int, str] = {}
+    for i in range(8):
+        gong = men_order[(pos + i) % 8]
+        mp[gong] = MEN_XU[(men_anchor + i) % 8]
+    return mp
+
+
+def zhi_shi_gong_xunshou(yang: bool, zhi_fu_gong: int, xun_zhi: str,
+                         shi_zhi: str) -> int:
+    """值使落宫（「自旬首宫顺逆数地支」法）：
+    旬首（值符）宫起旬首支，阳遁顺、阴遁逆数至时支，所落之宫即值使宫
+    （《秘笈大全》「看某局上起子至某甲符头……又数至某时，即为门也」）。
+    六甲时（时支=旬首支）零步 → 门归本宫。"""
+    steps = (ZHI12.index(shi_zhi) - ZHI12.index(xun_zhi)) % 12
+    men_order = MEN_GONG_XU if yang else list(reversed(MEN_GONG_XU))
+    start = 2 if zhi_fu_gong == 5 else zhi_fu_gong
+    pos = men_order.index(start)
+    return men_order[(pos + steps) % 8]
 
 
 @dataclass
@@ -128,46 +177,42 @@ class QimenChart:
     zhi_fu_gong: int = 0      # 值符宫（旬首遁干宫）
     zhi_shi_men: str = ""     # 值使门
     tian_pan: dict[int, str] = field(default_factory=dict)  # 宫 → 天盘星
-    men_pan: dict[int, str] = field(default_factory=dict)   # 宫 → 八门
+    men_pan: dict[int, str] = field(default_factory=dict)   # 宫 → 八门（门法①）
+    men_pan_alt: dict[int, str] = field(default_factory=dict)  # 门法②「自旬首宫顺逆数地支」
     shen_pan: dict[int, str] = field(default_factory=dict)  # 宫 → 八神
     fu_yin: bool = False      # 星门全伏吟
     fan_yin: bool = False     # 星门全反吟（值符值使俱对宫）
+    # ---- 多流派并算 ----
+    school: str = "chaibu"            # 当前三元派 key
+    men_school: str = "zhigong"       # 当前门法 key
+    ju_schools: list = field(default_factory=list)    # 三元派并算（各含完整盘面）
+    men_schools: list = field(default_factory=list)   # 门法两派并算（各含值使宫+八门盘）
 
 
-def bu_ju(year: int, month: int, day: int, hour: int, minute: int = 0) -> QimenChart:
-    """时家奇门排盘（公历输入）。"""
-    from lunar_python import Solar
-
-    solar = Solar.fromYmdHms(year, month, day, hour, minute, 0)
-    lunar = solar.getLunar()
-    dt = _solar_dt(solar)
-    jq = governing_jieqi(dt)
-    day_gz = lunar.getDayInGanZhi()
-    hour_gz = lunar.getTimeInGanZhi()
-
+def _build(year: int, month: int, day: int, hour: int, minute: int,
+           jq: str, ju: int, yuan: str, day_gz: str, hour_gz: str) -> QimenChart:
+    """按给定节气/局数/元 布一套完整盘（含门法两派并算）。"""
     c = QimenChart(year=year, month=month, day=day, hour=hour, minute=minute)
     c.jie_qi = jq
+    c.ju = ju
+    c.yuan = yuan
     c.day_ganzhi = day_gz
     c.hour_ganzhi = hour_gz
-    shang, zhong, xia = JU_TABLE[jq]
-    c.yuan = day_yuan(day_gz)
-    c.ju = {"上元": shang, "中元": zhong, "下元": xia}[c.yuan]
     c.dun = "阳遁" if jq in ("冬至", "小寒", "大寒", "立春", "雨水", "惊蛰",
-                            "春分", "清明", "谷雨", "立夏", "小满", "芒种") else "阴遁"
+                             "春分", "清明", "谷雨", "立夏", "小满", "芒种") else "阴遁"
     yang = c.dun == "阳遁"
 
     # 地盘三奇六仪：阳遁顺布六仪逆布三奇（戊己庚辛壬癸丁丙乙）；阴遁反之
     seq = "戊己庚辛壬癸" + ("丁丙乙" if yang else "乙丙丁")
-    start = c.ju
     step = 1 if yang else -1
     for i, g in enumerate(seq):
-        gong = ((start - 1 + i * step) % 9) + 1
+        gong = ((ju - 1 + i * step) % 9) + 1
         c.di_pan[gong] = g
 
     # 值符值使：时旬首 → 六甲遁干 → 宫
     gan_idx = "甲乙丙丁戊己庚辛壬癸".index(hour_gz[0])
-    zhi_idx = "子丑寅卯辰巳午未申酉戌亥".index(hour_gz[1])
-    xun_zhi = "子丑寅卯辰巳午未申酉戌亥"[(zhi_idx - gan_idx) % 12]
+    zhi_idx = ZHI12.index(hour_gz[1])
+    xun_zhi = ZHI12[(zhi_idx - gan_idx) % 12]
     c.xun_shou = "甲" + xun_zhi
     dun_gan = LIU_JIA_DUN[c.xun_shou]
     zhi_fu_gong = next(g for g, d in c.di_pan.items() if d == dun_gan)
@@ -186,19 +231,23 @@ def bu_ju(year: int, month: int, day: int, hour: int, minute: int = 0) -> QimenC
         gong = ((shi_gan_gong - 1 + i * (1 if yang else -1)) % 9) + 1
         c.tian_pan[gong] = XING_XU[(anchor + i) % 9]
 
-    # 八门：值使门加时支宫，其余按门序顺布（宫序跳中五）
+    # 八门两派并算
     shi_zhi = hour_gz[1]
-    shi_zhi_gong = ZHI_GONG[shi_zhi]
-    men_anchor = MEN_XU.index(c.zhi_shi_men)
-    men_order = MEN_GONG_XU if yang else list(reversed(MEN_GONG_XU))
-    # 值使门定位在时支宫（该宫在排布序中的位置）
-    try:
-        pos = men_order.index(shi_zhi_gong)
-    except ValueError:
-        pos = 0
-    for i in range(8):
-        gong = men_order[(pos + i) % 8]
-        c.men_pan[gong] = MEN_XU[(men_anchor + i) % 8]
+    gong_a = ZHI_GONG[shi_zhi]                                    # 门法① 时支本位宫
+    gong_b = zhi_shi_gong_xunshou(yang, zhi_fu_gong, xun_zhi, shi_zhi)  # 门法② 旬首顺逆数地支
+    c.men_pan = men_pan_layout(yang, zhi_fu_gong, c.zhi_shi_men, gong_a)
+    c.men_pan_alt = men_pan_layout(yang, zhi_fu_gong, c.zhi_shi_men, gong_b)
+    c.men_schools = [
+        {"key": "zhigong", "name": "时支本位宫法", "zhi_shi_gong": gong_a,
+         "men_pan": c.men_pan,
+         "note": "值使门加时支所在九宫方位，余门按门序顺布（《秘笈大全》"
+                 "「休门飞到坤二宫即住，便为值使门也」互证）。"},
+        {"key": "xunshou", "name": "自旬首宫顺逆数地支", "zhi_shi_gong": gong_b,
+         "men_pan": c.men_pan_alt,
+         "note": "旬首（值符）宫起旬首支，阳顺阴逆数至时支，所落宫即值使宫"
+                 "（《秘笈大全》「看某局上起子至某甲符头……又数至某时，即为门也」；"
+                 "六甲时门归本宫）。"},
+    ]
 
     # 八神：值符加值符星宫（天盘值符星所在宫；中五寄坤二），阳顺阴逆，八神不入中五
     fu_xing_gong = next(g for g, x in c.tian_pan.items() if x == c.zhi_fu_xing)
@@ -227,5 +276,50 @@ def bu_ju(year: int, month: int, day: int, hour: int, minute: int = 0) -> QimenC
     return c
 
 
-__all__ = ["QimenChart", "bu_ju", "governing_jieqi", "day_yuan",
-           "JU_TABLE", "GONG_XING", "GONG_MEN", "ZHI_GONG", "NOTES"]
+def bu_ju(year: int, month: int, day: int, hour: int, minute: int = 0) -> QimenChart:
+    """时家奇门排盘（公历输入）。三元定局双派（拆补法/茅山法）与
+    值使门起法双派（时支本位宫/自旬首宫顺逆数地支）同时计算。"""
+    from lunar_python import Solar
+
+    solar = Solar.fromYmdHms(year, month, day, hour, minute, 0)
+    lunar = solar.getLunar()
+    dt = _solar_dt(solar)
+    jq, jq_dt = governing_jieqi_dt(dt)
+    day_gz = lunar.getDayInGanZhi()
+    hour_gz = lunar.getTimeInGanZhi()
+
+    shang, zhong, xia = JU_TABLE[jq]
+    yuan_cb = day_yuan(day_gz)
+    yuan_ms = day_yuan_maoshan(dt, jq_dt)
+
+    variants = []
+    for key, name, yuan, note in (
+        ("chaibu", "拆补法", yuan_cb, "按日干支符头（甲己+子午卯酉上元、寅申巳亥中元、辰戌丑未下元）归元"),
+        ("maoshan", "茅山法", yuan_ms, "自交节日起每五日一元（0-4 上元、5-9 中元、10-14 下元）"),
+    ):
+        ju = {"上元": shang, "中元": zhong, "下元": xia}[yuan]
+        sc = _build(year, month, day, hour, minute, jq, ju, yuan, day_gz, hour_gz)
+        variants.append({
+            "key": key, "name": name, "note": note,
+            "yuan": yuan, "ju": ju, "dun": sc.dun,
+            "di_pan": sc.di_pan, "zhi_fu_xing": sc.zhi_fu_xing,
+            "zhi_fu_gong": sc.zhi_fu_gong, "zhi_shi_men": sc.zhi_shi_men,
+            "tian_pan": sc.tian_pan, "men_pan": sc.men_pan,
+            "men_pan_alt": sc.men_pan_alt, "shen_pan": sc.shen_pan,
+            "fu_yin": sc.fu_yin, "fan_yin": sc.fan_yin,
+        })
+
+    # 默认盘 = 拆补法（兼容旧口径）
+    c = _build(year, month, day, hour, minute, jq, {"上元": shang, "中元": zhong,
+                                                    "下元": xia}[yuan_cb],
+               yuan_cb, day_gz, hour_gz)
+    c.ju_schools = variants
+    c.school = "chaibu"
+    c.men_school = "zhigong"
+    return c
+
+
+__all__ = ["QimenChart", "bu_ju", "governing_jieqi", "governing_jieqi_dt",
+           "day_yuan", "day_yuan_maoshan", "men_pan_layout",
+           "zhi_shi_gong_xunshou", "JU_TABLE", "GONG_XING", "GONG_MEN",
+           "ZHI_GONG", "NOTES"]

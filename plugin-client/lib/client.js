@@ -1513,12 +1513,17 @@
         if (!d || !d.di_pan) return h(ToolRow, { block, title: "奇门遁甲 · 排盘" });
         const [hover, setHover] = useState(null);
         const [layers, setLayers] = useState({ di: true, xing: true, men: true, shen: true });
+        const [juK, setJuK] = useState(null);       // 三元派（null=默认拆补法）
+        const [menK, setMenK] = useState("zhigong"); // 门法两派
+        const juSchools = Array.isArray(d.ju_schools) ? d.ju_schools : [];
+        const chart = juSchools.find((s) => s.key === juK) ?? d;
+        const menPan = (menK === "xunshou" && chart.men_pan_alt) ? chart.men_pan_alt : chart.men_pan;
         const cells = FZ_LUO_ORDER.map((g, idx) => ({
           gong: g,
-          di: d.di_pan[String(g)] ?? "—",
-          xing: d.tian_pan[String(g)] ?? "—",
-          men: d.men_pan[String(g)] ?? "—",
-          shen: d.shen_pan[String(g)] ?? "—",
+          di: chart.di_pan[String(g)] ?? "—",
+          xing: chart.tian_pan[String(g)] ?? "—",
+          men: menPan[String(g)] ?? "—",
+          shen: chart.shen_pan[String(g)] ?? "—",
           idx,
         }));
         const layerBtn = (k, label) => h("button", {
@@ -1527,20 +1532,37 @@
         }, label);
         const menCls = (m) => /^(开门|休门|生门)$/.test(m) ? "ji"
           : /^(伤门|杜门|景门)$/.test(m) ? "ban" : "xiong";
+        const menSchools = Array.isArray(chart.men_schools) ? chart.men_schools : [];
         ensureFzStyle();
         return h(ToolRow, {
-          block, title: `奇门遁甲 · ${d.dun ?? ""}${d.ju ?? ""}局`,
+          block, title: `奇门遁甲 · ${chart.dun ?? ""}${chart.ju ?? ""}局`,
           pill: h("span", { className: "ft-pill" },
-            `${d.jie_qi ?? ""}·${d.yuan ?? ""} 值符${d.zhi_fu_xing ?? "—"} 值使${d.zhi_shi_men ?? "—"}`),
+            `${chart.jie_qi ?? ""}·${chart.yuan ?? ""} 值符${chart.zhi_fu_xing ?? "—"} 值使${chart.zhi_shi_men ?? "—"}`),
         },
         h("div", { className: "fz-wrap" },
+          juSchools.length > 1 ? h("div", { className: "fz-toggles" },
+            h("span", { className: "fz-chip" }, "三元定局派："),
+            juSchools.map((s) => h("button", {
+              key: s.key, type: "button",
+              className: "fz-toggle act" + ((juK ?? "chaibu") === s.key ? " on" : ""),
+              title: s.note ?? "",
+              onClick: () => setJuK(juK === s.key ? null : s.key),
+            }, `${s.name} ${s.yuan}·${s.ju}局`))) : null,
           h("div", { className: "fz-toggles" },
             layerBtn("di", "地盘"), layerBtn("xing", "九星"), layerBtn("men", "八门"), layerBtn("shen", "八神"),
-            h("span", { className: "fz-chip" }, `${d.dun ?? ""}${d.ju ?? ""}局 · ${d.dun === "阳遁" ? "顺布" : "逆布"}`)),
+            h("span", { className: "fz-chip" }, `${chart.dun ?? ""}${chart.ju ?? ""}局 · ${chart.dun === "阳遁" ? "顺布" : "逆布"}`)),
+          menSchools.length > 1 ? h("div", { className: "fz-toggles" },
+            h("span", { className: "fz-chip" }, "值使起法："),
+            menSchools.map((s) => h("button", {
+              key: s.key, type: "button",
+              className: "fz-toggle act" + (menK === s.key ? " on" : ""),
+              title: s.note ?? "",
+              onClick: () => setMenK(s.key),
+            }, `${s.name} → 落${FZ_GONGCN[s.zhi_shi_gong]}宫`))) : null,
           h("div", { className: "fz-grid" },
             cells.map((c) => {
-              const isFu = c.xing === d.zhi_fu_xing;
-              const isShi = c.men === d.zhi_shi_men;
+              const isFu = c.xing === chart.zhi_fu_xing;
+              const isShi = c.men === chart.zhi_shi_men;
               const mid = c.gong === 5;
               const qi = "乙丙丁".includes(c.di);
               return h("div", {
@@ -1561,8 +1583,8 @@
           h("div", { className: "fz-legend" },
             hover ? h("span", { className: "fz-chip" }, ((c) =>
               `${FZ_GONGCN[c.gong]}宫：地盘${c.di} · ${c.xing} · ${c.men} · ${c.shen}`)(cells.find((x) => x.gong === hover))) : null,
-            d.fu_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "伏吟") : null,
-            d.fan_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "反吟") : null,
+            chart.fu_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "伏吟") : null,
+            chart.fan_yin ? h("span", { className: "fz-chip", style: { borderColor: "#ef5350" } }, "反吟") : null,
             h("span", { className: "fz-chip", style: { borderColor: "#4ade80" } }, "开休生·吉"),
             h("span", { className: "fz-chip", style: { borderColor: "#f87171" } }, "死惊·凶"),
             h("span", { className: "fz-chip", style: { borderColor: "#ffd54f" } }, "乙丙丁·三奇"))));

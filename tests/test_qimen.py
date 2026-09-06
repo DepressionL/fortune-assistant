@@ -1,11 +1,12 @@
-"""奇门遁甲排盘回归测试：局数歌诀、黄金用例、引文逐字锁定。"""
+"""奇门遁甲排盘回归测试：局数歌诀、黄金用例、引文逐字锁定、多流派并算。"""
 import pathlib
 import re
 
 import pytest
 
 from fortune.qimen import (GONG_XING, JU_TABLE, bu_ju, day_yuan,
-                           governing_jieqi)
+                           day_yuan_maoshan, governing_jieqi,
+                           men_pan_layout, zhi_shi_gong_xunshou)
 from fortune.qimen.duanyu import format_chart
 from fortune.qimen.text import NOTES, QUOTES
 
@@ -90,6 +91,73 @@ def test_day_yuan():
     assert day_yuan("甲辰") == "下元" and day_yuan("戊戌") == "下元"
 
 
+# ---------- 多流派并算 ----------
+
+def test_men_schools_both_computed():
+    """门法两派并算：秘笈大全金锚（阳遁二局甲子日乙丑时）。
+    门法①时支本位宫 → 休门在坤二（与「休门飞到坤二宫」互证）；
+    门法②自旬首宫顺逆数地支 → 旬首宫(坤二)起子顺数一步至寅时支丑 → 值使落震三。"""
+    c = bu_ju(1988, 1, 10, 1, 30)
+    assert c.men_pan[2] == "休门"                       # 门法①（金锚）
+    keys = [s["key"] for s in c.men_schools]
+    assert keys == ["zhigong", "xunshou"]
+    alt = c.men_schools[1]
+    assert alt["zhi_shi_gong"] == 3                     # 坤二起子 → 顺数一步至丑 → 震三
+    assert alt["men_pan"][3] == "死门" and alt["men_pan"][7] == "休门"
+    assert c.men_pan_alt == alt["men_pan"]
+
+
+def test_men_school_xunshou_jiashi_returns_ben_gong():
+    """门法②六甲时（时支=旬首支）零步 → 门归本宫（与门法①同宫）。"""
+    c = bu_ju(1989, 1, 4, 0, 30)                        # 阳一局甲子时
+    assert c.men_schools[1]["zhi_shi_gong"] == c.zhi_fu_gong == 1
+    assert c.men_pan_alt[1] == "休门"
+
+
+def test_men_school_xunshou_yindun():
+    """门法②阴遁逆数：阴九局甲子日壬申时（申时），旬首甲子，值符宫离九；
+    八宫序逆排 [9,8,7,6,4,3,2,1]，自离九逆数八步（子…申）仍落离九；
+    门法①时支申本位宫 = 坤二。"""
+    c = bu_ju(1985, 9, 22, 15, 30)
+    assert c.dun == "阴遁" and c.ju == 9
+    assert c.hour_ganzhi == "壬申" and c.xun_shou == "甲子"
+    assert c.men_schools[0]["zhi_shi_gong"] == 2        # 门法① 申 → 坤二
+    assert c.men_schools[1]["zhi_shi_gong"] == 9        # 门法② 逆数八步 → 离九（值符宫）
+    assert c.men_pan_alt[9] == "景门" and c.men_pan[2] == "景门"
+
+
+def test_ju_schools_chaibu_maoshan():
+    """三元定局两派并算：1988-01-11（小寒后第 5 日，乙丑日）。
+    拆补法按日干支符头（丑 → 下元）→ 5 局；茅山法按交节日起五日一元 → 中元 8 局。"""
+    c = bu_ju(1988, 1, 11, 12, 0)
+    assert c.jie_qi == "小寒"
+    keys = [s["key"] for s in c.ju_schools]
+    assert keys == ["chaibu", "maoshan"]
+    cb = c.ju_schools[0]
+    ms = c.ju_schools[1]
+    assert (cb["yuan"], cb["ju"]) == ("下元", 5)
+    assert (ms["yuan"], ms["ju"]) == ("中元", 8)
+    assert c.school == "chaibu" and c.ju == 5
+    # 茅山法局不同 → 地盘不同（戊起艮八 / 拆补戊起中五）
+    assert ms["di_pan"][8] == "戊" and cb["di_pan"][5] == "戊"
+    # 每派都带两套门盘
+    assert ms["men_pan_alt"] and cb["men_pan_alt"]
+
+
+def test_day_yuan_maoshan():
+    import datetime as dt
+    from fortune.qimen import governing_jieqi_dt
+    _, jq = governing_jieqi_dt(dt.datetime(1988, 1, 11, 12, 0))
+    assert day_yuan_maoshan(dt.datetime(1988, 1, 11, 12, 0), jq) == "中元"
+
+
+def test_men_layout_helper():
+    """men_pan_layout：阳遁值使死门落三宫 → 死三、惊四、开六、休七…"""
+    mp = men_pan_layout(True, 2, "死门", 3)
+    assert mp == {3: "死门", 4: "惊门", 6: "开门", 7: "休门",
+                  8: "生门", 9: "伤门", 1: "杜门", 2: "景门"}
+
+
 @pytest.mark.skipif(not (ROOT / "research" / "fetched" / "奇门秘笈大全.txt").exists(),
                     reason="《奇门遁甲秘笈大全》存档缺失")
 def test_quotes_verbatim_in_sources():
@@ -97,7 +165,7 @@ def test_quotes_verbatim_in_sources():
     yb = _norm((ROOT / "research" / "fetched" / "wikisource_yanbodiao sou.txt")
                .read_text(encoding="utf-8"))
     mj_keys = {"布仪", "符使", "局数阳", "局数阴", "天禽", "值使例", "值使例注",
-               "九星", "八门", "八神阳", "八神阴", "八神替", "八神替2"}
+               "值使数支", "九星", "八门", "八神阳", "八神阴", "八神替", "八神替2"}
     for k in mj_keys:
         assert _norm(QUOTES[k]) in mj, k
     for k in ("烟波布仪", "烟波符使"):
@@ -105,7 +173,7 @@ def test_quotes_verbatim_in_sources():
 
 
 def test_notes_mark_disputes():
-    assert "拆补" in NOTES["三元"] and "置闰" in NOTES["三元"]
+    assert "拆补" in NOTES["三元"] and "置闰" in NOTES["三元"] and "茅山" in NOTES["三元"]
     assert "九宫方位" in NOTES["值使"] and "顺逆数地支" in NOTES["值使"]
 
 
